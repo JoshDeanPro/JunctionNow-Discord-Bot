@@ -20,6 +20,11 @@
 - Made setup role mentions multi-role and first-delivery-only.
 - Added tracked broadcast withdrawal.
 - Hid standalone Photos and gated Request Photos on its internal destination.
+- Renamed Bot to Manage Bot and grouped internal credentials under Configuration.
+- Added Storage feature usage, backend status, and preferences views without adding database drivers.
+- Added safe local cleanup and private JSON snapshot actions under Storage Maintenance.
+- Moved scheduling and bounded data retention into Feature Settings.
+- Added explicit Broadcast delivery timing: now or with the next post batch.
 - Moved private Discord setup into `jnbot` and removed separate token scripts.
 - Updated rendered posts when article-page metadata changes.
 - Kept photo requests and withdrawals intact when feed content changes.

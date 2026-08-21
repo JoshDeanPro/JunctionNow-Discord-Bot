@@ -161,6 +161,7 @@ class ControlWorker:
             "feed": self.feed,
             "sync_now": self.sync_now,
             "sync_interval": self.sync_interval,
+            "retention": self.retention,
             "ban_server": self.ban_server,
             "unban_server": self.unban_server,
             "set_channel": self.set_channel,
@@ -169,6 +170,7 @@ class ControlWorker:
             "withdraw_post": self.withdraw_post,
             "restore_post": self.restore_post,
             "broadcast": self.broadcast,
+            "schedule_broadcast": self.schedule_broadcast,
             "withdraw_broadcast": self.withdraw_broadcast,
             "delete_server_data": self.delete_server_data,
             "delete_post_data": self.delete_post_data,
@@ -193,6 +195,19 @@ class ControlWorker:
             raise ValueError("Post checks must be 30 minutes to 24 hours apart.")
 
         self.bot.background_sync.change_interval(seconds=seconds)
+
+    async def retention(self, payload: dict) -> None:
+        values = {
+            "max_posts": (int(payload["max_posts"]), 100, 5000),
+            "max_events": (int(payload["max_events"]), 100, 5000),
+            "backup_count": (int(payload["backup_count"]), 1, 20),
+        }
+
+        for name, (value, minimum, maximum) in values.items():
+            if not minimum <= value <= maximum:
+                raise ValueError(f"Invalid retention value: {name}")
+
+            setattr(self.bot.store, name, value)
 
     async def feed(self, payload: dict) -> None:
         enabled = bool(
@@ -497,7 +512,7 @@ class ControlWorker:
             description=text,
             title="JunctionNow",
         )
-        broadcast_id = uuid.uuid4().hex[:12]
+        broadcast_id = str(payload.get("broadcast_id") or uuid.uuid4().hex[:12])
         deliveries = []
 
         for guild_id, config in (
@@ -555,6 +570,7 @@ class ControlWorker:
                 "message": text,
                 "sent_at": now(),
                 "withdrawn": False,
+                "status": "sent",
                 "deliveries": deliveries,
             }
 
@@ -568,6 +584,38 @@ class ControlWorker:
                     broadcasts.pop(item["id"], None)
 
         await self.bot.store.mutate(save)
+
+    async def schedule_broadcast(self, payload: dict) -> None:
+        text = str(payload.get("message", "")).strip()
+
+        if not text or len(text) > 4000:
+            raise ValueError("Broadcast message must be 1 to 4000 characters.")
+
+        broadcast_id = uuid.uuid4().hex[:12]
+
+        def save(state):
+            state.setdefault("broadcasts", {})[broadcast_id] = {
+                "id": broadcast_id,
+                "message": text,
+                "created_at": now(),
+                "status": "scheduled",
+                "withdrawn": False,
+                "deliveries": [],
+            }
+
+        await self.bot.store.mutate(save)
+
+    async def send_scheduled_broadcasts(self) -> None:
+        state = await self.bot.store.snapshot()
+
+        for broadcast in state.get("broadcasts", {}).values():
+            if broadcast.get("status") == "scheduled" and not broadcast.get("withdrawn"):
+                await self.broadcast(
+                    {
+                        "broadcast_id": broadcast["id"],
+                        "message": broadcast["message"],
+                    }
+                )
 
     async def withdraw_broadcast(self, payload: dict) -> None:
         broadcast_id = str(payload["broadcast_id"])

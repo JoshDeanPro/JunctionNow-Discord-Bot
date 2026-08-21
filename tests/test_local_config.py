@@ -73,3 +73,19 @@ def test_old_short_schedule_reports_effective_minimum(tmp_path, monkeypatch):
     monkeypatch.setattr(local_config, "ENV_FILE", env_file)
 
     assert local_config.configured()["sync_interval_minutes"] == 30
+
+
+def test_retention_preferences_are_bounded_and_saved(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")
+
+    local_config.save_value("STATE_MAX_POSTS", "500")
+    local_config.save_value("STATE_MAX_EVENTS", "250")
+    local_config.save_value("STATE_BACKUP_COUNT", "3")
+
+    status = local_config.configured()
+    assert status["state_max_posts"] == 500
+    assert status["state_max_events"] == 250
+    assert status["state_backup_count"] == 3
+
+    with pytest.raises(ValueError, match="outside the supported range"):
+        local_config.save_value("STATE_BACKUP_COUNT", "0")

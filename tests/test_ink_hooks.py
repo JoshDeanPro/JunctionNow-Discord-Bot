@@ -75,7 +75,7 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "title: 'Add-ons'" in text
     assert "'Request Photos'" in text
     assert "title: 'Features'" in text
-    assert "title: 'Bot'" in text
+    assert "title: 'Manage Bot'" in text
     assert "title: 'Storage'" in text
     assert "title: 'Settings'" in text
     assert "'enter save   esc cancel'" in text
@@ -85,3 +85,10 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "Request Photos · configure destination first" in text
     assert "{id: 'photos', label: 'Photos'}" not in text
     assert "Withdraw Broadcast" in text
+    assert "title: 'Storage Features'" in text
+    assert "title: 'Storage Destinations'" in text
+    assert "title: 'Storage Preferences'" in text
+    assert "title: 'Storage Maintenance'" in text
+    assert "label: 'Clear All'" in text
+    assert "Default · JSON" in text
+    assert "item.status === 'inactive'" in text

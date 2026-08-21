@@ -396,6 +396,8 @@ class SyncEngine:
                     ).isoformat()
                 )
 
+                await self.bot.control_worker.send_scheduled_broadcasts()
+
                 await self.store.record_event(
                     "sync_complete",
                     metadata={

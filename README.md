@@ -32,9 +32,12 @@ Its menus contain:
 - **Overview** for counts and delivery state
 - **Servers** for installed-server controls and delivery state
 - **Features** for Posts and tracked Broadcasts
-- **Bot** for internal credentials, channels, logs, analytics, and invites
-- **Storage** for active JSON state and activity records
-- **Settings** for schedule, start, stop, updates, and manager uninstall
+- **Manage Bot** for internal configuration, logs, analytics, and invites
+- **Storage** for feature usage, destinations, maintenance, retention, and local archives
+- **Settings** for start, stop, updates, and manager uninstall
+
+Feature scheduling lives under **Features → Settings**. Data retention has one
+home under **Storage → Preferences**.
 
 Posts contains its own controls and Add-ons. Request Photos and its destination
 live only under **Features → Posts → Add-ons**. Request Photos stays unavailable

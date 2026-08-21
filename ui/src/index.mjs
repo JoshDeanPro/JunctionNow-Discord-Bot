@@ -444,45 +444,29 @@ function Menu({
           return h(
             Box,
             {
+              flexDirection: 'column',
               key:
                 `${item.id}-${itemIndex}`
             },
             h(
-              Text,
-              {
-                color:
-                  selected
-                    ? BLUE
-                    : DIM
-              },
-              selected
-                ? '› '
-                : '  '
+              Box,
+              {},
+              h(Text, {color: selected ? BLUE : DIM}, selected ? '› ' : '  '),
+              item.status
+                ? h(Text, {color: item.statusColor || MUTED}, `${item.status} `)
+                : null,
+              h(
+                Text,
+                {
+                  bold: selected,
+                  color: item.disabled ? DIM : selected ? BLUE : undefined
+                },
+                item.label
+              )
             ),
-            item.status
-              ? h(
-                  Text,
-                  {
-                    color:
-                      item.statusColor
-                      || MUTED
-                  },
-                  `${item.status} `
-                )
-              : null,
-            h(
-              Text,
-              {
-                bold: selected,
-                color:
-                  item.disabled
-                    ? DIM
-                    : selected
-                    ? BLUE
-                    : undefined
-              },
-              item.label
-            )
+            item.description
+              ? h(Box, {marginLeft: 4}, h(Text, {color: MUTED}, item.description))
+              : null
           );
         }
       )
@@ -806,8 +790,8 @@ function Root({
           label: 'Features'
         },
         {
-          id: 'bot',
-          label: 'Bot'
+          id: 'manage-bot',
+          label: 'Manage Bot'
         },
         {
           id: 'storage',
@@ -960,7 +944,29 @@ function Dashboard({
   );
 }
 
-function Bot({
+function ManageBot({
+  go,
+  back
+}) {
+  return h(
+    Menu,
+    {
+      title: 'Manage Bot',
+      subtitle: 'Internal bot management.',
+      back,
+      items: [
+        {id: 'configuration', label: 'Configuration'},
+        {id: 'activity', label: 'Logs'},
+        {id: 'overview', label: 'Analytics'},
+        {id: 'invite-copy', label: 'Copy invite link'},
+        {id: 'invite-show', label: 'Invite bot or restore permissions'}
+      ],
+      select: item => go({name: item.id})
+    }
+  );
+}
+
+function Configuration({
   go,
   back
 }) {
@@ -980,8 +986,8 @@ function Bot({
   return h(
     Menu,
     {
-      title: 'Bot',
-      subtitle: 'Internal JunctionNow bot configuration.',
+      title: 'Configuration',
+      subtitle: 'Private bot and internal server settings.',
       back,
       items: [
         {id: 'setup', label: 'Credentials'},
@@ -989,22 +995,16 @@ function Bot({
           id: 'photo-setup',
           label:
             data.photo_destination_configured
-              ? 'Channel Configuration: configured'
-              : 'Channel Configuration: not configured'
-        },
-        {id: 'activity', label: 'Logs'},
-        {id: 'overview', label: 'Analytics'},
-        {id: 'invite-copy', label: 'Copy invite link'},
-        {id: 'invite-show', label: 'Invite bot or restore permissions'}
-      ],
-      select: item => {
-        if (item.id === 'photo-setup') {
-          go({name: 'photo-setup', config: data});
-          return;
+              ? 'Management Server: configured'
+              : 'Management Server: not configured'
         }
-
-        go({name: item.id});
-      }
+      ],
+      select:
+        item => go(
+          item.id === 'photo-setup'
+            ? {name: 'photo-setup', config: data}
+            : {name: item.id}
+        )
     }
   );
 }
@@ -1021,9 +1021,121 @@ function Features({
       back,
       items: [
         {id: 'posts', label: 'Posts'},
-        {id: 'broadcast', label: 'Broadcast'}
+        {id: 'broadcast', label: 'Broadcast'},
+        {id: 'feature-settings', label: 'Settings'}
       ],
       select: item => go({name: item.id})
+    }
+  );
+}
+
+function FeatureSettings({
+  go,
+  back
+}) {
+  return h(
+    Menu,
+    {
+      title: 'Feature Settings',
+      subtitle: 'How bot features run.',
+      back,
+      items: [
+        {id: 'schedule', label: 'Post Schedule'}
+      ],
+      select: item => go({name: item.id})
+    }
+  );
+}
+
+function Retention({
+  go,
+  back
+}) {
+  const [data, setData] = useState(null);
+
+  useEffect(
+    () => {
+      bridge('config-status').then(setData);
+    },
+    []
+  );
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  return h(
+    Menu,
+    {
+      title: 'Data Retention',
+      subtitle: 'Limits keep active JSON state bounded.',
+      back,
+      items: [
+        {id: 'max_posts', label: `Posts: ${data.state_max_posts}`},
+        {id: 'max_events', label: `Activity events: ${data.state_max_events}`},
+        {id: 'backup_count', label: `Backups: ${data.state_backup_count}`}
+      ],
+      select:
+        item => go({
+          name: 'retention-choice',
+          field: item.id,
+          config: data
+        })
+    }
+  );
+}
+
+function RetentionChoice({
+  screen,
+  go,
+  back
+}) {
+  const choices = {
+    max_posts: [250, 500, 1000, 2000, 5000],
+    max_events: [100, 250, 500, 1000, 2000],
+    backup_count: [1, 3, 5, 10, 20]
+  };
+  const labels = {
+    max_posts: 'Retained Posts',
+    max_events: 'Retained Activity Events',
+    backup_count: 'State Backups'
+  };
+  const current = {
+    max_posts: screen.config.state_max_posts,
+    max_events: screen.config.state_max_events,
+    backup_count: screen.config.state_backup_count
+  };
+
+  return h(
+    Menu,
+    {
+      title: labels[screen.field],
+      subtitle: 'Choose a bounded local limit.',
+      back,
+      items: choices[screen.field].map(
+        value => ({
+          id: String(value),
+          label: String(value),
+          status: value === current[screen.field] ? '●' : undefined,
+          statusColor: 'green',
+          value
+        })
+      ),
+      select:
+        async item => {
+          const values = {...current, [screen.field]: item.value};
+
+          try {
+            await bridge('retention-set', values);
+            go({
+              name: 'message',
+              title: 'Data Retention',
+              message: `${labels[screen.field]} set to ${item.value}.`
+            });
+          } catch (error) {
+            go({name: 'message', title: 'Retention failed', message: error.message});
+          }
+        }
     }
   );
 }
@@ -1039,7 +1151,6 @@ function Settings({
       subtitle: 'Runtime and Bot Manager settings.',
       back,
       items: [
-        {id: 'schedule', label: 'Schedule'},
         {id: 'start', label: 'Start bot'},
         {id: 'stop', label: 'Stop bot'},
         {id: 'updates', label: 'Updates'},
@@ -1062,15 +1173,110 @@ function Storage({
     Menu,
     {
       title: 'Storage',
-      subtitle: 'Active local storage.',
+      subtitle: 'Where bot data lives and how it is kept.',
       back,
       items: [
-        {id: 'storage-info', label: 'JSON · data/state.json'},
-        {id: 'activity', label: 'Activity records'}
+        {id: 'storage-features', label: 'Features'},
+        {id: 'storage-settings', label: 'Destinations'},
+        {id: 'storage-maintenance', label: 'Maintenance'},
+        {id: 'storage-preferences', label: 'Preferences'}
       ],
       select: item => go({name: item.id})
     }
   );
+}
+
+function StorageFeatures({back}) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    bridge('storage-status').then(setData);
+  }, []);
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  const features = data.features;
+
+  return h(Menu, {
+    title: 'Storage Features',
+    subtitle: 'Features using retained local data.',
+    back,
+    items: [
+      {id: 'posts', label: 'Posts', description: `${features.posts} posts · ${features.deliveries} deliveries · limit ${data.limits.posts}`, disabled: true},
+      {id: 'photos', label: 'Request Photos', description: `${features.photo_requests} active requests · ${features.photo_submissions} submissions`, disabled: true},
+      {id: 'broadcasts', label: 'Broadcast', description: `${features.broadcasts} retained`, disabled: true},
+      {id: 'activity', label: 'Activity', description: `${features.activity} events · limit ${data.limits.activity}`, disabled: true}
+    ],
+    select: () => {}
+  });
+}
+
+function StorageSettings({go, back}) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    bridge('storage-status').then(setData);
+  }, []);
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  const backend = (id, label) => {
+    const item = data.backends[id];
+    const active = item.status === 'active';
+    const problem = item.status === 'inactive';
+
+    return {
+      id,
+      label,
+      status: active || problem ? '●' : '○',
+      statusColor: active ? 'green' : problem ? 'red' : MUTED,
+      description: item.label,
+      disabled: !active
+    };
+  };
+
+  return h(Menu, {
+    title: 'Storage Destinations',
+    subtitle: 'Places where bot data can be stored.',
+    back,
+    items: [
+      backend('json', 'Default · JSON'),
+      backend('mysql', 'MySQL'),
+      backend('postgresql', 'PostgreSQL')
+    ],
+    select: item => go(item.id === 'json' ? {name: 'storage-info'} : {name: item.id})
+  });
+}
+
+function StorageMaintenance({go, back}) {
+  return h(Menu, {
+    title: 'Storage Maintenance',
+    subtitle: 'Safe, focused actions for local data.',
+    back,
+    items: [
+      {id: 'storage-clean', label: 'Clean Safe Data', description: 'Remove finished actions and withdrawn broadcasts.'},
+      {id: 'storage-dump', label: 'Dump Snapshot', description: 'Save a private JSON copy on this machine.'},
+      {id: 'storage-clear', label: 'Clear All', description: 'Unavailable while delivery tracking is active.', disabled: true}
+    ],
+    select: item => go({name: item.id})
+  });
+}
+
+function StoragePreferences({go, back}) {
+  return h(Menu, {
+    title: 'Storage Preferences',
+    subtitle: 'Local retention and archive settings.',
+    back,
+    items: [
+      {id: 'retention', label: 'Data Retention'},
+      {id: 'storage-archive', label: 'Archive Location', description: 'data/backups'}
+    ],
+    select: item => go({name: item.id})
+  });
 }
 
 function Schedule({
@@ -1430,7 +1636,7 @@ function Posts({
     {
       title: 'Posts',
       subtitle:
-        'Latest tracked JunctionNow posts.',
+        'Latest tracked posts.',
       back,
       items:
         [
@@ -1750,8 +1956,9 @@ function Broadcasts({
           item => ({
             id: item.id,
             label:
-              `${item.withdrawn ? 'Withdrawn · ' : ''}`
-              + `${item.message.slice(0, 60)} · ${friendlyDate(item.sent_at)}`,
+              `${item.withdrawn ? 'Withdrawn · ' : item.status === 'scheduled' ? 'Scheduled · ' : ''}`
+              + `${item.message.slice(0, 60)} · `
+              + friendlyDate(item.sent_at || item.created_at),
             disabled: Boolean(item.withdrawn),
             broadcast: item
           })
@@ -1970,9 +2177,16 @@ function App() {
 
   if (
     screen.name
-    === 'bot'
+    === 'manage-bot'
   ) {
-    return h(Bot, {go, back});
+    return h(ManageBot, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'configuration'
+  ) {
+    return h(Configuration, {go, back});
   }
 
   if (
@@ -1980,6 +2194,27 @@ function App() {
     === 'features'
   ) {
     return h(Features, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'feature-settings'
+  ) {
+    return h(FeatureSettings, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'retention'
+  ) {
+    return h(Retention, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'retention-choice'
+  ) {
+    return h(RetentionChoice, {screen, go, back});
   }
 
   if (
@@ -1994,6 +2229,22 @@ function App() {
     === 'storage'
   ) {
     return h(Storage, {go, back});
+  }
+
+  if (screen.name === 'storage-features') {
+    return h(StorageFeatures, {back});
+  }
+
+  if (screen.name === 'storage-settings') {
+    return h(StorageSettings, {go, back});
+  }
+
+  if (screen.name === 'storage-maintenance') {
+    return h(StorageMaintenance, {go, back});
+  }
+
+  if (screen.name === 'storage-preferences') {
+    return h(StoragePreferences, {go, back});
   }
 
   if (
@@ -2016,6 +2267,38 @@ function App() {
         back
       }
     );
+  }
+
+  if (screen.name === 'storage-archive') {
+    return h(Message, {
+      title: 'Archive Location',
+      message: 'Bounded state backups are kept in data/backups on this machine.',
+      back
+    });
+  }
+
+  if (screen.name === 'storage-clean') {
+    return h(Confirm, {
+      title: 'Clean Safe Data',
+      message: 'Remove finished actions and withdrawn broadcasts? Delivery tracking stays safe.',
+      back,
+      confirm: async () => {
+        const result = await bridge('storage-clean');
+        done(`Removed ${result.removed.actions} finished actions and ${result.removed.broadcasts} withdrawn broadcasts.`);
+      }
+    });
+  }
+
+  if (screen.name === 'storage-dump') {
+    return h(Confirm, {
+      title: 'Dump Snapshot',
+      message: 'Save a private JSON copy of current bot data on this machine?',
+      back,
+      confirm: async () => {
+        const result = await bridge('storage-dump');
+        done(`Snapshot saved to ${result.location}.`);
+      }
+    });
   }
 
   if (
@@ -2521,8 +2804,32 @@ function App() {
         submit:
           value => go({
             name:
-              'broadcast-confirm',
+              'broadcast-timing',
             value
+          })
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'broadcast-timing'
+  ) {
+    return h(
+      Menu,
+      {
+        title: 'Broadcast Delivery',
+        subtitle: 'Choose when to send this message.',
+        back,
+        items: [
+          {id: 'now', label: 'Send Now'},
+          {id: 'batch', label: 'Send With Next Post Batch'}
+        ],
+        select:
+          item => go({
+            name: 'broadcast-confirm',
+            value: screen.value,
+            delivery: item.id
           })
       }
     );
@@ -2562,7 +2869,9 @@ function App() {
       Confirm,
       {
         title:
-          'Send broadcast',
+          screen.delivery === 'now'
+            ? 'Send Broadcast Now'
+            : 'Schedule Broadcast',
         message:
           screen.value,
         back,
@@ -2572,7 +2881,9 @@ function App() {
               'queue',
               {
                 action:
-                  'broadcast',
+                  screen.delivery === 'now'
+                    ? 'broadcast'
+                    : 'schedule_broadcast',
                 payload: {
                   message:
                     screen.value
@@ -2581,7 +2892,9 @@ function App() {
             );
 
             done(
-              'Broadcast queued.'
+              screen.delivery === 'now'
+                ? 'Broadcast send requested.'
+                : 'Broadcast scheduled for the next post batch.'
             );
           }
       }

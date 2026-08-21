@@ -27,6 +27,9 @@ def configured() -> dict:
             int(values.get("SYNC_INTERVAL_SECONDS", "1800")) // 60,
         ),
         "timezone": datetime.now().astimezone().tzname() or "Local time",
+        "state_max_posts": int(values.get("STATE_MAX_POSTS", "1000")),
+        "state_max_events": int(values.get("STATE_MAX_EVENTS", "500")),
+        "state_backup_count": int(values.get("STATE_BACKUP_COUNT", "5")),
     }
 
 
@@ -56,6 +59,9 @@ def save_value(name: str, value: str) -> None:
         "MANAGEMENT_CHANNEL_ID",
         "PHOTO_WEBHOOK_URL",
         "SYNC_INTERVAL_SECONDS",
+        "STATE_MAX_POSTS",
+        "STATE_MAX_EVENTS",
+        "STATE_BACKUP_COUNT",
     }
 
     if name not in allowed:
@@ -71,6 +77,9 @@ def save_value(name: str, value: str) -> None:
         "MANAGEMENT_GUILD_ID",
         "MANAGEMENT_CHANNEL_ID",
         "SYNC_INTERVAL_SECONDS",
+        "STATE_MAX_POSTS",
+        "STATE_MAX_EVENTS",
+        "STATE_BACKUP_COUNT",
     }
 
     if name in numeric and not value.isdigit():
@@ -78,6 +87,15 @@ def save_value(name: str, value: str) -> None:
 
     if name == "SYNC_INTERVAL_SECONDS" and not 1800 <= int(value) <= 86400:
         raise ValueError("Choose an interval from 30 minutes to 24 hours.")
+
+    limits = {
+        "STATE_MAX_POSTS": (100, 5000),
+        "STATE_MAX_EVENTS": (100, 5000),
+        "STATE_BACKUP_COUNT": (1, 20),
+    }
+
+    if name in limits and not limits[name][0] <= int(value) <= limits[name][1]:
+        raise ValueError("That retention value is outside the supported range.")
 
     if name == "PHOTO_WEBHOOK_URL" and not value.startswith(
         ("https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/")

@@ -6,7 +6,9 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import discord
@@ -333,6 +335,84 @@ async def async_main(
             "items": items
         }
 
+    if command == "storage-status":
+        config = configured()
+        posts = state.get("posts", {})
+        deliveries = state.get("deliveries", {})
+        events = state.get("analytics", {}).get("events", [])
+
+        return {
+            "backends": {
+                "json": {"status": "active", "label": "Active"},
+                "mysql": {"status": "not_enabled", "label": "Not Enabled"},
+                "postgresql": {"status": "not_enabled", "label": "Not Enabled"},
+            },
+            "features": {
+                "posts": len(posts),
+                "deliveries": sum(len(items) for items in deliveries.values()),
+                "photo_requests": sum(
+                    1 for post in posts.values() if post.get("photo_requested")
+                ),
+                "photo_submissions": sum(
+                    1 for event in events if event.get("type") == "photo_submission"
+                ),
+                "broadcasts": len(state.get("broadcasts", {})),
+                "activity": len(events),
+            },
+            "limits": {
+                "posts": config["state_max_posts"],
+                "activity": config["state_max_events"],
+                "backups": config["state_backup_count"],
+            },
+            "state_location": "data/state.json",
+            "archive_location": "data/backups",
+        }
+
+    if command == "storage-clean":
+        removed = {"actions": 0, "broadcasts": 0}
+
+        def clean(current):
+            queue = current.setdefault("control", {}).setdefault("queue", [])
+            kept = [item for item in queue if item.get("status") != "done"]
+            removed["actions"] = len(queue) - len(kept)
+            queue[:] = kept
+
+            broadcasts = current.setdefault("broadcasts", {})
+            withdrawn = [
+                broadcast_id
+                for broadcast_id, item in broadcasts.items()
+                if item.get("withdrawn")
+            ]
+            for broadcast_id in withdrawn:
+                broadcasts.pop(broadcast_id, None)
+            removed["broadcasts"] = len(withdrawn)
+
+        await store.mutate(clean)
+        return {"removed": removed}
+
+    if command == "storage-dump":
+        export_dir = ROOT / "data" / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        target = export_dir / f"state-{stamp}.json"
+        encoded = json.dumps(state, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+        descriptor, temporary = tempfile.mkstemp(prefix=".export-", dir=export_dir)
+
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(encoded)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, target)
+        finally:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+
+        return {"location": f"data/exports/{target.name}"}
+
     if command == "broadcasts":
         items = list(state.get("broadcasts", {}).values())
         items.sort(key=lambda item: item.get("sent_at", ""), reverse=True)
@@ -374,6 +454,18 @@ async def async_main(
             {"seconds": seconds},
         )
         return {"action_id": action_id, "minutes": minutes}
+
+    if command == "retention-set":
+        values = {
+            "max_posts": int(data["max_posts"]),
+            "max_events": int(data["max_events"]),
+            "backup_count": int(data["backup_count"]),
+        }
+        save_value("STATE_MAX_POSTS", str(values["max_posts"]))
+        save_value("STATE_MAX_EVENTS", str(values["max_events"]))
+        save_value("STATE_BACKUP_COUNT", str(values["backup_count"]))
+        action_id = await enqueue(store, "retention", values)
+        return {"action_id": action_id, **values}
 
     raise ValueError(
         f"Unknown command: {command}"
