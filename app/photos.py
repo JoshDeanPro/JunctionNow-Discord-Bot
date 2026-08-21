@@ -126,10 +126,7 @@ class PhotoSubmitModal(discord.ui.Modal):
             )
             return
 
-        channel = await (
-            self.bot.management
-            .photo_submission_channel()
-        )
+        channel = await self.bot.operator_channels.photos()
 
         if channel is None:
             await interaction.response.send_message(

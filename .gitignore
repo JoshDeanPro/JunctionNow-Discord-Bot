@@ -59,3 +59,7 @@ scratch/
 n8n/.env
 n8n/credentials*
 n8n/*credentials*.json
+
+ui/node_modules/
+data/*.pid
+data/*.lock

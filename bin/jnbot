@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [ ! -x "$ROOT/.venv/bin/python" ]; then
+    echo "Python environment is missing."
+    exit 1
+fi
+
+if [ ! -d "$ROOT/ui/node_modules" ]; then
+    echo "JunctionNow operator UI is not installed."
+    echo "Run:"
+    echo "  npm --prefix \"$ROOT/ui\" install"
+    exit 1
+fi
+
+exec node "$ROOT/ui/src/index.mjs"
