@@ -28,7 +28,7 @@ resume posts.
 the bot. Running `./bin/jnbot` safely installs the command when it is missing.
 Its menus contain:
 
-- **Dashboard** for counts and delivery state
+- **Overview** for counts and delivery state
 - **Bot Settings** for setup, required permissions, invites, installed servers,
   and bot start or stop
 - **Features** for Posts, Photos, and Broadcast

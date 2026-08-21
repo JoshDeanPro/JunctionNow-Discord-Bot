@@ -494,6 +494,90 @@ function Menu({
   );
 }
 
+function MultiSelect({
+  title,
+  subtitle,
+  items,
+  submit,
+  back
+}) {
+  const [index, setIndex] = useState(0);
+  const [selected, setSelected] = useState(new Set());
+
+  useInput(
+    (input, key) => {
+      if ((key.upArrow || input === 'k') && items.length) {
+        setIndex(value => (value - 1 + items.length) % items.length);
+        return;
+      }
+
+      if ((key.downArrow || input === 'j') && items.length) {
+        setIndex(value => (value + 1) % items.length);
+        return;
+      }
+
+      if (input === ' ' && items[index]) {
+        setSelected(
+          current => {
+            const next = new Set(current);
+            const id = items[index].id;
+
+            if (next.has(id)) {
+              next.delete(id);
+            } else {
+              next.add(id);
+            }
+
+            return next;
+          }
+        );
+        return;
+      }
+
+      if (key.return && selected.size) {
+        submit(items.filter(item => selected.has(item.id)));
+        return;
+      }
+
+      if (key.escape) {
+        back();
+      }
+    }
+  );
+
+  return h(
+    Box,
+    {flexDirection: 'column'},
+    h(Header),
+    h(Text, {bold: true}, title),
+    h(Text, {color: MUTED}, subtitle),
+    h(
+      Box,
+      {flexDirection: 'column', marginTop: 1},
+      ...(
+        items.length
+          ? items.map(
+              (item, itemIndex) => h(
+                Text,
+                {
+                  key: item.id,
+                  color: itemIndex === index ? BLUE : undefined
+                },
+                `${itemIndex === index ? '›' : ' '} `
+                + `[${selected.has(item.id) ? 'x' : ' '}] ${item.label}`
+              )
+            )
+          : [h(Text, {key: 'empty', color: MUTED}, 'No matching articles')]
+      )
+    ),
+    h(
+      Box,
+      {marginTop: 1},
+      h(Text, {color: DIM}, 'space select   enter submit   esc back')
+    )
+  );
+}
+
 function LineInput({
   title,
   help,
@@ -708,8 +792,8 @@ function Root({
         'Local control for JunctionNow.',
       items: [
         {
-          id: 'dashboard',
-          label: 'Dashboard'
+          id: 'overview',
+          label: 'Overview'
         },
         {
           id: 'bot-settings',
@@ -769,7 +853,7 @@ function Dashboard({
     return h(
       Message,
       {
-        title: 'Dashboard error',
+        title: 'Overview error',
         message: error.message,
         back
       }
@@ -830,7 +914,7 @@ function Dashboard({
       {
         bold: true
       },
-      'Dashboard'
+      'Overview'
     ),
     h(
       Box,
@@ -1429,8 +1513,12 @@ function PostsAddons({
       back,
       items: [
         {
-          id: 'photos',
+          id: 'request-photos',
           label: 'Request Photos'
+        },
+        {
+          id: 'stop-photos',
+          label: 'Stop Requesting Photos'
         },
         {
           id: 'photo-destination',
@@ -1444,13 +1532,17 @@ function PostsAddons({
         item => go(
           item.id === 'photo-destination'
             ? {name: 'photo-setup', config: data}
-            : {name: 'photo-posts'}
+            : {
+                name: 'photo-posts',
+                enabled: item.id === 'request-photos'
+              }
         )
     }
   );
 }
 
 function PhotoPosts({
+  screen,
   go,
   back
 }) {
@@ -1467,27 +1559,54 @@ function PhotoPosts({
     return h(Loading);
   }
 
+  const posts = data.items.filter(
+    post => Boolean(post.photo_requested) !== screen.enabled
+  );
+
   return h(
-    Menu,
+    MultiSelect,
     {
-      title: 'Request Photos',
-      subtitle: 'Choose an article.',
+      title:
+        screen.enabled
+          ? 'Request Photos'
+          : 'Stop Requesting Photos',
+      subtitle: 'Choose one or more articles.',
       back,
-      items: data.items.map(
+      items: posts.map(
         post => ({
           id: post.post_id,
           label: post.title || 'JunctionNow',
-          status: post.photo_requested ? '●' : '○',
-          statusColor: post.photo_requested ? BLUE : DIM,
           post
         })
       ),
-      select:
-        item => go({
-          name: 'post-action',
-          action: 'photos',
-          post: item.post
-        })
+      submit:
+        async items => {
+          try {
+            await bridge(
+              'queue',
+              {
+                action: 'photo_requests',
+                payload: {
+                  post_ids: items.map(item => item.post.post_id),
+                  enabled: screen.enabled
+                }
+              }
+            );
+
+            go({
+              name: 'message',
+              title: 'Posts',
+              message:
+                `${items.length} article${items.length === 1 ? '' : 's'} queued.`
+            });
+          } catch (error) {
+            go({
+              name: 'message',
+              title: 'Action failed',
+              message: error.message
+            });
+          }
+        }
     }
   );
 }
@@ -1732,7 +1851,7 @@ function App() {
 
   if (
     screen.name
-    === 'dashboard'
+    === 'overview'
   ) {
     return h(
       Dashboard,
@@ -2124,7 +2243,7 @@ function App() {
     screen.name
     === 'photo-posts'
   ) {
-    return h(PhotoPosts, {go, back});
+    return h(PhotoPosts, {screen, go, back});
   }
 
   if (

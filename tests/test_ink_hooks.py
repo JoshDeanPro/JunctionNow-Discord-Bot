@@ -58,7 +58,7 @@ def test_operator_dates_are_friendly():
 def test_menu_wraps_and_only_escape_exits():
     text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
     start = text.index("function Menu")
-    end = text.index("function LineInput", start)
+    end = text.index("function MultiSelect", start)
     menu = text[start:end]
 
     assert menu.count("% items.length") == 2
@@ -78,3 +78,5 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "title: 'Bot Settings'" in text
     assert "title: 'Bot Manager'" in text
     assert "'enter save   esc cancel'" in text
+    assert "space select   enter submit   esc back" in text
+    assert "label: 'Overview'" in text

@@ -164,6 +164,7 @@ class ControlWorker:
             "unban_server": self.unban_server,
             "set_channel": self.set_channel,
             "photo_request": self.photo_request,
+            "photo_requests": self.photo_requests,
             "withdraw_post": self.withdraw_post,
             "restore_post": self.restore_post,
             "broadcast": self.broadcast,
@@ -339,6 +340,17 @@ class ControlWorker:
             str(payload["post_id"]),
             bool(payload["enabled"]),
         )
+
+    async def photo_requests(self, payload: dict) -> None:
+        post_ids = list(dict.fromkeys(str(item) for item in payload.get("post_ids", [])))
+
+        if not post_ids or len(post_ids) > 100:
+            raise ValueError("Choose between 1 and 100 articles.")
+
+        enabled = bool(payload.get("enabled"))
+
+        for post_id in post_ids:
+            await set_photo_request(self.bot, post_id, enabled)
 
     async def withdraw_post(
         self,
