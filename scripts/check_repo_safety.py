@@ -26,6 +26,22 @@ SKIP_SUFFIXES = {
     ".tar",
 }
 
+ENV_STYLE_NAMES = {
+    ".env",
+    ".env.local",
+    ".env.production",
+    ".env.development",
+    "environment",
+    "environment.conf",
+}
+
+ENV_STYLE_SUFFIXES = {
+    ".env",
+    ".ini",
+    ".conf",
+    ".properties",
+}
+
 PATTERNS = (
     (
         "Discord webhook",
@@ -80,6 +96,13 @@ PATTERNS = (
     ),
 )
 
+ENV_SECRET_ASSIGNMENT = re.compile(
+    r"(?im)^[ \t]*"
+    r"(?:DISCORD_TOKEN|PASSWORD|API_KEY|SECRET)"
+    r"[ \t]*=[ \t]*"
+    r"([^#\r\n]*)$"
+)
+
 PLACEHOLDERS = {
     "",
     "__TOKEN__",
@@ -92,13 +115,6 @@ PLACEHOLDERS = {
     "PLACEHOLDER",
 }
 
-SIMPLE_SECRET_ASSIGNMENT = re.compile(
-    r"(?im)^[ \t]*"
-    r"(?:DISCORD_TOKEN|PASSWORD|API_KEY|SECRET)"
-    r"[ \t]*=[ \t]*"
-    r"([^#\r\n]*)$"
-)
-
 
 def tracked_files() -> list[str]:
     return subprocess.check_output(
@@ -107,20 +123,17 @@ def tracked_files() -> list[str]:
     ).splitlines()
 
 
-def looks_like_shell_or_source(path: Path) -> bool:
-    if path.suffix in {
-        ".py",
-        ".sh",
-        ".js",
-        ".ts",
-        ".tsx",
-        ".jsx",
-    }:
+def is_env_style(path: Path) -> bool:
+    if path.name in ENV_STYLE_NAMES:
         return True
 
-    return path.name in {
-        "Makefile",
-    }
+    if path.suffix.lower() in ENV_STYLE_SUFFIXES:
+        return True
+
+    if path.name.startswith(".env."):
+        return True
+
+    return False
 
 
 def main() -> int:
@@ -156,11 +169,15 @@ def main() -> int:
                     f"{name}: possible {label}"
                 )
 
-        if not looks_like_shell_or_source(path):
-            for match in SIMPLE_SECRET_ASSIGNMENT.finditer(
+        if is_env_style(path):
+            for match in ENV_SECRET_ASSIGNMENT.finditer(
                 text
             ):
-                value = match.group(1).strip().strip("\"'")
+                value = (
+                    match.group(1)
+                    .strip()
+                    .strip("\"'")
+                )
 
                 if value.upper() not in PLACEHOLDERS:
                     problems.append(
