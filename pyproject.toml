@@ -1,7 +1,7 @@
 [project]
 name = "junctionnow-discord-bot"
-version = "0.2.0"
-description = "Official JunctionNow Discord bot"
+version = "0.3.0"
+description = "Lightweight JunctionNow Discord feed bot"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -9,10 +9,6 @@ dependencies = [
     "feedparser>=6.0,<7",
     "httpx>=0.28,<1",
     "selectolax>=0.4,<1",
-    "pydantic>=2.11,<3",
-    "pydantic-settings>=2.10,<3",
-    "fastapi>=0.116,<1",
-    "uvicorn[standard]>=0.35,<1",
 ]
 
 [project.optional-dependencies]

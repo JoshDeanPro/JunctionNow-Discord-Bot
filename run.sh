@@ -3,12 +3,9 @@ set -Eeuo pipefail
 
 cd "$(dirname "$0")"
 
-if [ ! -d .venv ]; then
-    echo "Missing .venv."
-    echo "Run: ./scripts/bootstrap_mac.sh"
+if [ ! -x .venv/bin/python ]; then
+    echo "Missing .venv"
     exit 1
 fi
 
-source .venv/bin/activate
-
-exec python -m app.main
+exec .venv/bin/python -m app.main
