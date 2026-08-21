@@ -1,72 +1,75 @@
 # JunctionNow Discord Bot
 
-A small Python bot that sends JunctionNow posts to Discord and keeps them up to date.
+JunctionNow sends official feed posts to configured Discord servers and keeps
+each Discord message up to date.
 
-## What It Does
+## How It Works
 
-- reads the JunctionNow feed
-- sends new posts to Discord
-- updates old Discord messages when a post changes
-- stores state in JSON
-- lets server managers choose a channel
-- supports optional role mentions
-- has a local operator console named `jnbot`
+Every 30 minutes, one feed check finds both new and changed articles. New posts
+are delivered once. Changed articles edit the existing Discord message by its
+saved message ID. Unchanged posts do not cause Discord message lookups.
 
-Feed:
+The bot recreates a delivery when Discord reports that its message was deleted,
+unless the post was deliberately withdrawn. discord.py handles Discord rate
+limits. Article text cannot create mentions, and edits do not ping roles again.
 
-    https://junctionnow.com/feed/
-
-## Commands
-
-The bot has two server commands:
+Server managers use only:
 
     /config
     /status
 
-Both require **Manage Server** permission.
+Both commands require **Manage Server** permission. `/config` selects or creates
+a posting channel, chooses optional mention roles, and enables delivery.
 
-`/config` lets a server manager:
+## jnbot
 
-- choose a channel
-- make a channel
-- choose mention roles
-- turn mentions off
-- enable or disable posting
+`jnbot` is the local operator console and the supported place to manage the bot.
+Its menus contain:
 
-## Operator Console
+- **Dashboard** for counts and delivery state
+- **Setup** for the private token, Application ID, and photo destination
+- **Servers** for installed servers, channels, bans, and retained data
+- **Posts** for immediate updates, automatic updates, article actions, and photos
+- **Photos** and **Activity** for recent local records
+- **Broadcast** for confirmed, mention-safe messages
+- **Updates** for approved fast-forward updates from GitHub main
+- **Bot** for daemon start and stop
 
-`jnbot` runs locally and never needs the Discord token. It reads the shared JSON
-state through a small Python command bridge.
+Esc is the only menu key that exits the console. Ctrl-C also works. Menu movement
+wraps at the top and bottom.
 
-It can manage:
+Private values are saved atomically in the gitignored `.env` file with private
+file permissions. Tokens are masked during entry and are never shown again.
+Runtime state stays in `data/state.json`, with process locking, atomic writes,
+bounded backups, and bounded activity history.
 
-- servers and posting channels
-- posts and photo requests
-- broadcasts
-- bot delivery state
-- safe updates from GitHub main
+Photo requests belong to individual posts. When enabled, delivered messages get
+a **Submit Photos** button. Users confirm ownership before uploading. Submissions
+go only to the optional private photo destination.
 
-Private settings stay in `.env` and are not stored in Git.
+## Install
 
-## Local Setup
-
-Create the Python environment:
+Requirements are Python 3.12 and Node 22.
 
     python3.12 -m venv .venv
     .venv/bin/pip install -e ".[dev]"
-
-Install the local console:
-
     npm --prefix ui ci
     ./scripts/install_cli.sh
+    jnbot
 
-Run `jnbot`, open **Setup**, and save the Discord token and Application ID.
-Then open **Bot** and start the daemon.
+Open **Setup**, save the Discord token and Application ID, then use **Bot** to
+start the daemon. Linux hosts may install the boot service after setup:
 
-## Production
+    sudo ./scripts/install_daemon.sh
 
-The bot runs as one Python daemon.
+The bot needs no Docker, database server, HTTP API, Redis, or external telemetry.
 
-It does not need Docker, a database server, FastAPI, Redis, or a web server.
+## Validate
 
-See `docs/DEPLOYMENT.md`.
+    .venv/bin/python scripts/check_repo_safety.py
+    .venv/bin/ruff check app tests scripts
+    .venv/bin/pytest -q
+    npm --prefix ui run check
+
+This repository is private, but secrets, local state, private IDs, and personal
+paths must still never be committed. See `SECURITY.md` and `CONTRIBUTING.md`.

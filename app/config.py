@@ -132,7 +132,7 @@ def get_settings() -> Settings:
         ),
         sync_interval_seconds=_integer(
             "SYNC_INTERVAL_SECONDS",
-            300,
+            1800,
         ),
         sync_on_startup=_boolean(
             "SYNC_ON_STARTUP",

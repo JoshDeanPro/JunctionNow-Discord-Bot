@@ -4,6 +4,11 @@
 
 ### Reliability
 
+- Changed automatic post checks to every 30 minutes.
+- Added one Posts action to check all new and changed articles now.
+- Replaced raw event timestamps with friendly local dates in `jnbot`.
+- Made menu movement wrap and limited root-menu exit to Esc or Ctrl-C.
+- Consolidated the project guides into the README.
 - Moved private Discord setup into `jnbot` and removed separate token scripts.
 - Updated rendered posts when article-page metadata changes.
 - Kept photo requests and withdrawals intact when feed content changes.

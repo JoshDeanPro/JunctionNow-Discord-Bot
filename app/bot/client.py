@@ -51,7 +51,7 @@ class JunctionNowBot(commands.Bot):
 
         self.background_sync.change_interval(
             seconds=max(
-                30,
+                1800,
                 self.settings.sync_interval_seconds,
             )
         )
@@ -137,7 +137,7 @@ class JunctionNowBot(commands.Bot):
     ) -> None:
         await self.wait_until_ready()
 
-    @tasks.loop(seconds=300)
+    @tasks.loop(seconds=1800)
     async def background_sync(
         self,
     ) -> None:
@@ -169,7 +169,7 @@ class JunctionNowBot(commands.Bot):
         if not self.settings.sync_on_startup:
             await asyncio.sleep(
                 max(
-                    30,
+                    1800,
                     self.settings.sync_interval_seconds,
                 )
             )

@@ -274,7 +274,8 @@ async def async_main(
         )
 
         return {
-            "items": items[:100]
+            "items": items[:100],
+            "feed_enabled": state.get("system", {}).get("feed_enabled", True),
         }
 
     if command == "photos":

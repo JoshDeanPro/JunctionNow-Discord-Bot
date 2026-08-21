@@ -159,6 +159,7 @@ class ControlWorker:
     ) -> None:
         handlers = {
             "feed": self.feed,
+            "sync_now": self.sync_now,
             "ban_server": self.ban_server,
             "unban_server": self.unban_server,
             "set_channel": self.set_channel,
@@ -178,6 +179,9 @@ class ControlWorker:
             )
 
         await handler(payload)
+
+    async def sync_now(self, payload: dict) -> None:
+        await self.bot.sync_engine.sync_once()
 
     async def feed(self, payload: dict) -> None:
         enabled = bool(

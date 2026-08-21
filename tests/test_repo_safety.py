@@ -10,15 +10,11 @@ def test_credentials_are_managed_by_jnbot_only():
     assert "secret: true" in text
 
 
-def test_style_guide_uses_generic_paths():
-    text = Path(
-        "docs/STYLE_GUIDE.md"
-    ).read_text(
-        encoding="utf-8"
-    )
+def test_readme_uses_generic_paths():
+    text = Path("README.md").read_text(encoding="utf-8")
 
-    assert "<project-root>" in text
-    assert "personal home folder" in text
+    assert "/Users/" not in text
+    assert "personal" in text
 
 
 def test_env_is_ignored():

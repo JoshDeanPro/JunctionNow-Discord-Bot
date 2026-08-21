@@ -47,6 +47,22 @@ const PYTHON = resolve(
   'python'
 );
 
+function friendlyDate(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown time';
+  }
+
+  return date.toLocaleString(
+    undefined,
+    {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }
+  );
+}
+
 function bridge(command, payload = {}) {
   return new Promise(
     (resolvePromise, reject) => {
@@ -274,12 +290,13 @@ function Menu({
         key.upArrow
         || input === 'k'
       ) {
-        setIndex(
-          value => Math.max(
-            0,
-            value - 1
-          )
-        );
+        if (items.length) {
+          setIndex(
+            value => (
+              value - 1 + items.length
+            ) % items.length
+          );
+        }
 
         return;
       }
@@ -288,12 +305,13 @@ function Menu({
         key.downArrow
         || input === 'j'
       ) {
-        setIndex(
-          value => Math.min(
-            items.length - 1,
-            value + 1
-          )
-        );
+        if (items.length) {
+          setIndex(
+            value => (
+              value + 1
+            ) % items.length
+          );
+        }
 
         return;
       }
@@ -311,15 +329,18 @@ function Menu({
         return;
       }
 
-      if (
-        key.escape
-        || key.leftArrow
-      ) {
-        if (back) {
-          back();
-        } else if (root) {
+      if (key.escape) {
+        if (root) {
           exit();
+        } else if (back) {
+          back();
         }
+
+        return;
+      }
+
+      if (key.leftArrow && back) {
+        back();
       }
     }
   );
@@ -1007,32 +1028,111 @@ function Posts({
         'Latest tracked JunctionNow posts.',
       back,
       items:
-        data.items.map(
-          post => ({
-            id: post.post_id,
+        [
+          {
+            id: 'update-all',
+            label: 'Update all posts now',
+            status: '↻',
+            statusColor: BLUE
+          },
+          {
+            id: 'toggle-updates',
             label:
-              post.title
-              || 'JunctionNow',
+              data.feed_enabled
+                ? 'Pause automatic post updates'
+                : 'Resume automatic post updates',
             status:
-              post.withdrawn
-                ? '×'
-                : post.photo_requested
-                  ? '●'
-                  : '○',
+              data.feed_enabled
+                ? '●'
+                : '○',
             statusColor:
-              post.withdrawn
-                ? 'red'
-                : post.photo_requested
-                  ? BLUE
-                  : DIM,
-            post
-          })
-        ),
-      select:
-        item => go({
+              data.feed_enabled
+                ? 'green'
+                : MUTED
+          },
+          ...data.items.map(
+            post => ({
+              id: post.post_id,
+              label:
+                post.title
+                || 'JunctionNow',
+              status:
+                post.withdrawn
+                  ? '×'
+                  : post.photo_requested
+                    ? '●'
+                    : '○',
+              statusColor:
+                post.withdrawn
+                  ? 'red'
+                  : post.photo_requested
+                    ? BLUE
+                    : DIM,
+              post
+            })
+          )
+        ],
+      select: item => {
+        if (item.id === 'update-all') {
+          bridge(
+            'queue',
+            {
+              action: 'sync_now'
+            }
+          ).then(
+            () => go({
+              name: 'message',
+              title: 'Posts',
+              message:
+                'Post update started. '
+                + 'New and changed posts will be delivered.'
+            })
+          ).catch(
+            error => go({
+              name: 'message',
+              title: 'Update failed',
+              message: error.message
+            })
+          );
+
+          return;
+        }
+
+        if (item.id === 'toggle-updates') {
+          bridge(
+            'queue',
+            {
+              action: 'feed',
+              payload: {
+                enabled:
+                  !data.feed_enabled
+              }
+            }
+          ).then(
+            () => go({
+              name: 'message',
+              title: 'Posts',
+              message:
+                data.feed_enabled
+                  ? 'Automatic post updates paused.'
+                  : 'Automatic post updates resumed.'
+            })
+          ).catch(
+            error => go({
+              name: 'message',
+              title: 'Update failed',
+              message: error.message
+            })
+          );
+
+          return;
+        }
+
+        go({
           name: 'post',
           post: item.post
-        })
+        });
+      }
     }
   );
 }
@@ -1120,7 +1220,8 @@ function Photos({
                 label:
                   `${item.metadata?.file_count || 0} photo(s) · `
                   + `${item.metadata?.post_id || 'post'} · `
-                  + `${item.metadata?.user_id || 'user'}`
+                  + `${item.metadata?.user_id || 'user'} · `
+                  + friendlyDate(item.at)
               })
             )
           : [
@@ -1166,7 +1267,8 @@ function Activity({
                 id:
                   `${index}-${item.at}`,
                 label:
-                  `${item.type} · ${item.at || ''}`
+                  `${item.type.replaceAll('_', ' ')} · `
+                  + friendlyDate(item.at)
               })
             )
           : [
@@ -1189,7 +1291,7 @@ function Bot({
     {
       title: 'Bot',
       subtitle:
-        'Daemon and feed controls.',
+        'Daemon controls.',
       back,
       items: [
         {
@@ -1199,14 +1301,6 @@ function Bot({
         {
           id: 'stop',
           label: 'Stop daemon'
-        },
-        {
-          id: 'pause',
-          label: 'Pause feed delivery'
-        },
-        {
-          id: 'resume',
-          label: 'Resume feed delivery'
         }
       ],
       select:
@@ -1903,18 +1997,6 @@ function App() {
               ) {
                 await bridge(
                   'daemon-stop'
-                );
-              } else {
-                await bridge(
-                  'queue',
-                  {
-                    action: 'feed',
-                    payload: {
-                      enabled:
-                        action
-                        === 'resume'
-                    }
-                  }
                 );
               }
 

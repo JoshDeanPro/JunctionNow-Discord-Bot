@@ -45,3 +45,23 @@ def test_dashboard_has_one_input_hook():
     assert text.count(
         "useInput("
     ) == 1
+
+
+def test_operator_dates_are_friendly():
+    text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
+
+    assert "function friendlyDate" in text
+    assert "dateStyle: 'medium'" in text
+    assert "Update all posts now" in text
+
+
+def test_menu_wraps_and_only_escape_exits():
+    text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
+    start = text.index("function Menu")
+    end = text.index("function LineInput", start)
+    menu = text[start:end]
+
+    assert menu.count("% items.length") == 2
+    assert "if (key.escape)" in menu
+    assert "if (key.leftArrow && back)" in menu
+    assert menu.count("exit();") == 1
