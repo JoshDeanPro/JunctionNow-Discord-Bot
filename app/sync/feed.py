@@ -111,6 +111,16 @@ def clean_html(
     )
 
 
+def clean_title(value: str | None) -> str:
+    title = clean_html(value)
+    return re.sub(
+        r"\s*[-|–—]\s*JunctionNow\.com\s*$",
+        "",
+        title,
+        flags=re.IGNORECASE,
+    ).strip()
+
+
 def clean_description(
     value: str | None,
 ) -> str:
@@ -344,7 +354,7 @@ class JunctionNowFeedClient:
         )
 
         if og_title:
-            post.title = og_title
+            post.title = clean_title(og_title)
 
         if page_description:
             post.body = page_description
@@ -418,12 +428,9 @@ class JunctionNowFeedClient:
                 : self.settings
                 .max_feed_items
             ]:
-                title = str(
-                    entry.get(
-                        "title",
-                        "No Title",
-                    )
-                ).strip()
+                title = clean_title(
+                    str(entry.get("title", "Untitled post"))
+                )
 
                 url = canonicalize_url(
                     str(

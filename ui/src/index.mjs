@@ -63,6 +63,12 @@ function friendlyDate(value) {
   );
 }
 
+function postTitle(value) {
+  return (value || 'Untitled post')
+    .replace(/\s*[-|–—]\s*JunctionNow\.com\s*$/i, '')
+    .trim();
+}
+
 function bridge(command, payload = {}) {
   return new Promise(
     (resolvePromise, reject) => {
@@ -258,6 +264,45 @@ function Footer({root = false}) {
   );
 }
 
+function Page({title, subtitle, children, footer, crumb = []}) {
+  return h(
+    Box,
+    {flexDirection: 'column'},
+    h(Header, {crumb}),
+    h(Text, {bold: true}, title),
+    subtitle ? h(Text, {color: MUTED}, subtitle) : null,
+    h(Box, {flexDirection: 'column', marginTop: 1}, children),
+    footer || null
+  );
+}
+
+function ReadOnlyList({title, subtitle, rows, back}) {
+  useInput((input, key) => {
+    if (key.escape || key.leftArrow) {
+      back();
+    }
+  });
+
+  return h(
+    Page,
+    {
+      title,
+      subtitle,
+      footer: h(Footer)
+    },
+    ...(rows.length
+      ? rows.map(row => h(
+          Box,
+          {key: row.id},
+          h(Text, {color: row.color}, row.label),
+          row.value
+            ? h(Text, {color: row.valueColor || MUTED}, `  ${row.value}`)
+            : null
+        ))
+      : [h(Text, {key: 'empty', color: MUTED}, 'Nothing to show')])
+  );
+}
+
 function Message({
   title,
   message,
@@ -275,43 +320,16 @@ function Message({
   );
 
   return h(
-    Box,
+    Page,
     {
-      flexDirection: 'column'
+      title,
+      footer: h(
+        Box,
+        {marginTop: 1},
+        h(Text, {color: DIM}, 'enter or esc back')
+      )
     },
-    h(Header),
-    h(
-      Text,
-      {
-        bold: true,
-        color: BLUE
-      },
-      title
-    ),
-    h(
-      Box,
-      {
-        marginTop: 1
-      },
-      h(
-        Text,
-        null,
-        message
-      )
-    ),
-    h(
-      Box,
-      {
-        marginTop: 1
-      },
-      h(
-        Text,
-        {
-          color: DIM
-        },
-        'enter or esc back'
-      )
-    )
+    h(Text, null, message)
   );
 }
 
@@ -325,6 +343,10 @@ function Menu({
 }) {
   const [index, setIndex] = useState(0);
   const {exit} = useApp();
+  const labelWidth = Math.min(
+    34,
+    Math.max(0, ...items.map(item => item.label.length))
+  );
 
   useEffect(
     () => {
@@ -407,34 +429,16 @@ function Menu({
   );
 
   return h(
-    Box,
+    Page,
     {
-      flexDirection: 'column'
+      title,
+      subtitle,
+      footer: h(Footer, {root})
     },
-    h(Header),
-    title
-      ? h(
-          Text,
-          {
-            bold: true
-          },
-          title
-        )
-      : null,
-    subtitle
-      ? h(
-          Text,
-          {
-            color: MUTED
-          },
-          subtitle
-        )
-      : null,
     h(
       Box,
       {
-        flexDirection: 'column',
-        marginTop: 1
+        flexDirection: 'column'
       },
       ...items.map(
         (item, itemIndex) => {
@@ -444,38 +448,32 @@ function Menu({
           return h(
             Box,
             {
-              flexDirection: 'column',
               key:
                 `${item.id}-${itemIndex}`
             },
+            h(Text, {color: selected ? BLUE : DIM}, selected ? '› ' : '  '),
             h(
-              Box,
-              {},
-              h(Text, {color: selected ? BLUE : DIM}, selected ? '› ' : '  '),
-              item.status
-                ? h(Text, {color: item.statusColor || MUTED}, `${item.status} `)
-                : null,
-              h(
-                Text,
-                {
-                  bold: selected,
-                  color: item.disabled ? DIM : selected ? BLUE : undefined
-                },
-                item.label
-              )
+              Text,
+              {
+                bold: selected,
+                color: item.disabled ? DIM : selected ? BLUE : undefined
+              },
+              item.state || item.description
+                ? item.label.padEnd(labelWidth + 2)
+                : item.label
             ),
+            item.state
+              ? h(Text, {color: item.stateColor || MUTED}, item.state)
+              : null,
+            item.state && item.description
+              ? h(Text, {color: MUTED}, ' · ')
+              : null,
             item.description
-              ? h(Box, {marginLeft: 4}, h(Text, {color: MUTED}, item.description))
+              ? h(Text, {color: MUTED}, item.description)
               : null
           );
         }
       )
-    ),
-    h(
-      Footer,
-      {
-        root
-      }
     )
   );
 }
@@ -532,14 +530,19 @@ function MultiSelect({
   );
 
   return h(
-    Box,
-    {flexDirection: 'column'},
-    h(Header),
-    h(Text, {bold: true}, title),
-    h(Text, {color: MUTED}, subtitle),
+    Page,
+    {
+      title,
+      subtitle,
+      footer: h(
+        Box,
+        {marginTop: 1},
+        h(Text, {color: DIM}, 'space select   enter submit   esc back')
+      )
+    },
     h(
       Box,
-      {flexDirection: 'column', marginTop: 1},
+      {flexDirection: 'column'},
       ...(
         items.length
           ? items.map(
@@ -555,11 +558,6 @@ function MultiSelect({
             )
           : [h(Text, {key: 'empty', color: MUTED}, 'No matching articles')]
       )
-    ),
-    h(
-      Box,
-      {marginTop: 1},
-      h(Text, {color: DIM}, 'space select   enter submit   esc back')
     )
   );
 }
@@ -619,32 +617,19 @@ function LineInput({
   );
 
   return h(
-    Box,
+    Page,
     {
-      flexDirection: 'column'
+      title,
+      subtitle: help,
+      footer: h(
+        Box,
+        {marginTop: 1},
+        h(Text, {color: DIM}, 'enter save   esc cancel')
+      )
     },
-    h(Header),
-    h(
-      Text,
-      {
-        bold: true
-      },
-      title
-    ),
-    help
-      ? h(
-          Text,
-          {
-            color: MUTED
-          },
-          help
-        )
-      : null,
     h(
       Box,
-      {
-        marginTop: 1
-      },
+      {},
       h(
         Text,
         {
@@ -667,19 +652,6 @@ function LineInput({
           color: MUTED
         },
         '█'
-      )
-    ),
-    h(
-      Box,
-      {
-        marginTop: 1
-      },
-      h(
-        Text,
-        {
-          color: DIM
-        },
-        'enter save   esc cancel'
       )
     )
   );
@@ -712,43 +684,16 @@ function Confirm({
   );
 
   return h(
-    Box,
+    Page,
     {
-      flexDirection: 'column'
+      title,
+      footer: h(
+        Box,
+        {marginTop: 1},
+        h(Text, {color: DIM}, 'y confirm   n/esc cancel')
+      )
     },
-    h(Header),
-    h(
-      Text,
-      {
-        bold: true,
-        color: 'yellow'
-      },
-      title
-    ),
-    h(
-      Box,
-      {
-        marginTop: 1
-      },
-      h(
-        Text,
-        null,
-        message
-      )
-    ),
-    h(
-      Box,
-      {
-        marginTop: 1
-      },
-      h(
-        Text,
-        {
-          color: DIM
-        },
-        'y confirm   n/esc cancel'
-      )
-    )
+    h(Text, {color: 'yellow'}, message)
   );
 }
 
@@ -804,9 +749,8 @@ function Root({
         {
           id: 'manage-bot',
           label: 'Manage Bot',
-          status: botState.symbol,
-          statusColor: botState.color,
-          description: botState.label
+          state: botState.label,
+          stateColor: botState.color
         },
         {
           id: 'storage',
@@ -827,14 +771,14 @@ function Root({
 
 function runtimeState(daemon) {
   if (daemon.status === 'active') {
-    return {label: 'Enabled', symbol: '●', color: 'green'};
+    return {label: 'Enabled', color: 'green'};
   }
 
   if (daemon.status === 'inactive') {
-    return {label: 'Inactive · expected to be running', symbol: '●', color: 'red'};
+    return {label: 'Inactive', color: 'red'};
   }
 
-  return {label: 'Disabled', symbol: '○', color: MUTED};
+  return {label: 'Disabled', color: MUTED};
 }
 
 function Dashboard({
@@ -918,23 +862,16 @@ function Dashboard({
   ];
 
   return h(
-    Box,
+    Page,
     {
-      flexDirection: 'column'
+      title: 'Overview',
+      subtitle: 'Current bot health and activity.',
+      footer: h(Footer)
     },
-    h(Header),
-    h(
-      Text,
-      {
-        bold: true
-      },
-      'Overview'
-    ),
     h(
       Box,
       {
-        flexDirection: 'column',
-        marginTop: 1
+        flexDirection: 'column'
       },
       ...rows.map(
         ([label, value]) =>
@@ -962,8 +899,7 @@ function Dashboard({
             )
           )
       )
-    ),
-    h(Footer)
+    )
   );
 }
 
@@ -993,14 +929,13 @@ function ManageBot({
       items: [
         {
           id: 'runtime',
-          label: `Bot ${botState.label}`,
-          status: botState.symbol,
-          statusColor: botState.color,
+          label: 'Bot',
+          state: botState.label,
+          stateColor: botState.color,
           action: active ? 'disable' : 'enable'
         },
         {id: 'configuration', label: 'Configuration'},
         {id: 'activity', label: 'Logs'},
-        {id: 'overview', label: 'Analytics'},
         {id: 'invite-copy', label: 'Copy invite link'},
         {id: 'invite-show', label: 'Invite bot or restore permissions'}
       ],
@@ -1040,10 +975,9 @@ function Configuration({
         {id: 'setup', label: 'Credentials'},
         {
           id: 'photo-setup',
-          label:
-            data.photo_destination_configured
-              ? 'Management Server: configured'
-              : 'Management Server: not configured'
+          label: 'Management Destination',
+          state: data.photo_destination_configured ? 'Configured' : 'Not enabled',
+          stateColor: data.photo_destination_configured ? 'green' : MUTED
         }
       ],
       select:
@@ -1068,26 +1002,7 @@ function Features({
       back,
       items: [
         {id: 'posts', label: 'Posts'},
-        {id: 'broadcast', label: 'Broadcast'},
-        {id: 'feature-settings', label: 'Settings'}
-      ],
-      select: item => go({name: item.id})
-    }
-  );
-}
-
-function FeatureSettings({
-  go,
-  back
-}) {
-  return h(
-    Menu,
-    {
-      title: 'Feature Settings',
-      subtitle: 'How bot features run.',
-      back,
-      items: [
-        {id: 'schedule', label: 'Post Schedule'}
+        {id: 'broadcast', label: 'Broadcast'}
       ],
       select: item => go({name: item.id})
     }
@@ -1163,8 +1078,8 @@ function RetentionChoice({
         value => ({
           id: String(value),
           label: String(value),
-          status: value === current[screen.field] ? '●' : undefined,
-          statusColor: 'green',
+          state: value === current[screen.field] ? 'Current' : undefined,
+          stateColor: 'green',
           value
         })
       ),
@@ -1240,17 +1155,16 @@ function StorageFeatures({back}) {
 
   const features = data.features;
 
-  return h(Menu, {
+  return h(ReadOnlyList, {
     title: 'Storage Features',
     subtitle: 'Features using retained local data.',
     back,
-    items: [
-      {id: 'posts', label: 'Posts', description: `${features.posts} posts · ${features.deliveries} deliveries · limit ${data.limits.posts}`, disabled: true},
-      {id: 'photos', label: 'Request Photos', description: `${features.photo_requests} active requests · ${features.photo_submissions} submissions`, disabled: true},
-      {id: 'broadcasts', label: 'Broadcast', description: `${features.broadcasts} retained`, disabled: true},
-      {id: 'activity', label: 'Activity', description: `${features.activity} events · limit ${data.limits.activity}`, disabled: true}
-    ],
-    select: () => {}
+    rows: [
+      {id: 'posts', label: 'Posts', value: `${features.posts} posts · ${features.deliveries} deliveries · limit ${data.limits.posts}`},
+      {id: 'photos', label: 'Request Photos', value: `${features.photo_requests} requests · ${features.photo_submissions} submissions`},
+      {id: 'broadcasts', label: 'Broadcast', value: `${features.broadcasts} retained`},
+      {id: 'activity', label: 'Activity', value: `${features.activity} events · limit ${data.limits.activity}`}
+    ]
   });
 }
 
@@ -1273,9 +1187,8 @@ function StorageSettings({go, back}) {
     return {
       id,
       label,
-      status: active || problem ? '●' : '○',
-      statusColor: active ? 'green' : problem ? 'red' : MUTED,
-      description: item.label,
+      state: item.label,
+      stateColor: active ? 'green' : problem ? 'red' : MUTED,
       disabled: !active
     };
   };
@@ -1299,9 +1212,9 @@ function StorageMaintenance({go, back}) {
     subtitle: 'Safe, focused actions for local data.',
     back,
     items: [
-      {id: 'storage-clean', label: 'Clean Safe Data', description: 'Remove finished actions and withdrawn broadcasts.'},
-      {id: 'storage-dump', label: 'Dump Snapshot', description: 'Save a private JSON copy on this machine.'},
-      {id: 'storage-clear', label: 'Clear All', description: 'Unavailable while delivery tracking is active.', disabled: true}
+      {id: 'storage-clean', label: 'Clean Safe Data', description: 'Finished actions and withdrawn broadcasts'},
+      {id: 'storage-dump', label: 'Dump Snapshot', description: 'Private JSON copy'},
+      {id: 'storage-clear', label: 'Clear All', description: 'Protected by delivery tracking', disabled: true}
     ],
     select: item => go({name: item.id})
   });
@@ -1342,9 +1255,9 @@ function Schedule({
   return h(
     Menu,
     {
-      title: 'Schedule',
+      title: 'Posts Settings',
       subtitle:
-        `Detected timezone: ${data.timezone} · Current: ${data.sync_interval_minutes} minutes`,
+        `Automatic checks · ${data.timezone} · every ${data.sync_interval_minutes} minutes`,
       back,
       items: choices.map(
         minutes => ({
@@ -1353,8 +1266,8 @@ function Schedule({
             minutes < 60
               ? `${minutes} minutes`
               : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`,
-          status: minutes === data.sync_interval_minutes ? '●' : undefined,
-          statusColor: 'green',
+          state: minutes === data.sync_interval_minutes ? 'Current' : undefined,
+          stateColor: 'green',
           minutes
         })
       ),
@@ -1364,11 +1277,11 @@ function Schedule({
             await bridge('schedule-set', {minutes: item.minutes});
             go({
               name: 'message',
-              title: 'Schedule',
+              title: 'Posts Settings',
               message: `Post checks now run every ${item.minutes} minutes.`
             });
           } catch (error) {
-            go({name: 'message', title: 'Schedule failed', message: error.message});
+            go({name: 'message', title: 'Posts Settings', message: error.message});
           }
         }
     }
@@ -1448,17 +1361,15 @@ function Setup({
       items: [
         {
           id: 'token',
-          label:
-            data.token_configured
-              ? 'Discord token: configured'
-              : 'Discord token: required'
+          label: 'Discord Token',
+          state: data.token_configured ? 'Configured' : 'Required',
+          stateColor: data.token_configured ? 'green' : 'yellow'
         },
         {
           id: 'application',
-          label:
-            data.application_id
-              ? `Application ID: ${data.application_id}`
-              : 'Application ID: required'
+          label: 'Application ID',
+          state: data.application_id || 'Required',
+          stateColor: data.application_id ? MUTED : 'yellow'
         }
       ],
       select:
@@ -1488,24 +1399,19 @@ function PhotoSetup({
       items: [
         {
           id: 'photo-server',
-          label:
-            data.photo_guild_id
-              ? `Server ID: ${data.photo_guild_id}`
-              : 'Server ID: not configured'
+          label: 'Server ID',
+          state: data.photo_guild_id || 'Not enabled'
         },
         {
           id: 'photo-channel',
-          label:
-            data.photo_channel_id
-              ? `Channel ID: ${data.photo_channel_id}`
-              : 'Channel ID: not configured'
+          label: 'Channel ID',
+          state: data.photo_channel_id || 'Not enabled'
         },
         {
           id: 'photo-webhook',
-          label:
-            data.photo_webhook_configured
-              ? 'Webhook: configured'
-              : 'Webhook: not configured'
+          label: 'Webhook',
+          state: data.photo_webhook_configured ? 'Configured' : 'Not enabled',
+          stateColor: data.photo_webhook_configured ? 'green' : MUTED
         },
         {
           id: 'photo-clear',
@@ -1547,18 +1453,22 @@ function Servers({
     server => ({
       id: server.id,
       label: server.name,
-      status:
+      state:
         server.banned
-          ? '●'
+          ? 'Banned'
           : server.enabled
-            ? '●'
-            : '○',
-      statusColor:
+            ? 'Active'
+            : server.channel_id
+              ? 'Disabled'
+              : 'Needs setup',
+      stateColor:
         server.banned
           ? 'red'
           : server.enabled
             ? 'green'
-            : MUTED,
+            : server.channel_id
+              ? MUTED
+              : 'yellow',
       server
     })
   );
@@ -1598,10 +1508,9 @@ function Server({
       items: [
         {
           id: 'channel',
-          label:
-            server.channel_id
-              ? `Posting channel: ${server.channel_id}`
-              : 'Set posting channel'
+          label: 'Posting Channel',
+          state: server.channel_id || 'Not configured',
+          stateColor: server.channel_id ? MUTED : 'yellow'
         },
         {
           id:
@@ -1683,9 +1592,7 @@ function Posts({
         [
           {
             id: 'update-all',
-            label: 'Update all posts now',
-            status: '↻',
-            statusColor: BLUE
+            label: 'Update All Now'
           },
           {
             id: 'toggle-updates',
@@ -1693,37 +1600,40 @@ function Posts({
               data.feed_enabled
                 ? 'Pause automatic post updates'
                 : 'Resume automatic post updates',
-            status:
+            state:
               data.feed_enabled
-                ? '●'
-                : '○',
-            statusColor:
+                ? 'Enabled'
+                : 'Paused',
+            stateColor:
               data.feed_enabled
                 ? 'green'
-                : MUTED
+                : 'yellow'
           },
           {
             id: 'addons',
             label: 'Add-ons'
           },
+          {
+            id: 'posts-settings',
+            label: 'Settings'
+          },
           ...data.items.map(
             post => ({
               id: post.post_id,
               label:
-                post.title
-                || 'JunctionNow',
-              status:
+                postTitle(post.title),
+              state:
                 post.withdrawn
-                  ? '×'
+                  ? 'Withdrawn'
                   : post.photo_requested
-                    ? '●'
-                    : '○',
-              statusColor:
+                    ? 'Photos requested'
+                    : undefined,
+              stateColor:
                 post.withdrawn
                   ? 'red'
                   : post.photo_requested
                     ? BLUE
-                    : DIM,
+                    : undefined,
               post
             })
           )
@@ -1789,6 +1699,11 @@ function Posts({
           return;
         }
 
+        if (item.id === 'posts-settings') {
+          go({name: 'schedule'});
+          return;
+        }
+
         go({
           name: 'post',
           post: item.post
@@ -1809,8 +1724,7 @@ function Post({
     Menu,
     {
       title:
-        post.title
-        || 'JunctionNow',
+        postTitle(post.title),
       subtitle:
         post.url || '',
       back,
@@ -1866,10 +1780,8 @@ function PostsAddons({
       items: [
         {
           id: 'request-photos',
-          label:
-            data.photo_destination_configured
-              ? 'Request Photos'
-              : 'Request Photos · configure destination first',
+          label: 'Request Photos',
+          state: data.photo_destination_configured ? undefined : 'Needs destination',
           disabled: !data.photo_destination_configured
         },
         {
@@ -1879,10 +1791,9 @@ function PostsAddons({
         },
         {
           id: 'photo-destination',
-          label:
-            data.photo_destination_configured
-              ? 'Photo destination: configured'
-              : 'Photo destination: not configured'
+          label: 'Photo Destination',
+          state: data.photo_destination_configured ? 'Configured' : 'Not enabled',
+          stateColor: data.photo_destination_configured ? 'green' : MUTED
         }
       ],
       select:
@@ -1932,7 +1843,7 @@ function PhotoPosts({
       items: posts.map(
         post => ({
           id: post.post_id,
-          label: post.title || 'JunctionNow',
+          label: postTitle(post.title),
           post
         })
       ),
@@ -1996,10 +1907,13 @@ function Broadcasts({
         ...data.items.map(
           item => ({
             id: item.id,
-            label:
-              `${item.withdrawn ? 'Withdrawn · ' : item.status === 'scheduled' ? 'Scheduled · ' : ''}`
-              + `${item.message.slice(0, 60)} · `
-              + friendlyDate(item.sent_at || item.created_at),
+            label: item.message.slice(0, 54),
+            state: item.withdrawn
+              ? 'Withdrawn'
+              : item.status === 'scheduled'
+                ? 'Scheduled'
+                : friendlyDate(item.sent_at || item.created_at),
+            stateColor: item.withdrawn ? 'red' : item.status === 'scheduled' ? 'yellow' : MUTED,
             disabled: Boolean(item.withdrawn),
             broadcast: item
           })
@@ -2033,33 +1947,16 @@ function Activity({
     return h(Loading);
   }
 
-  return h(
-    Menu,
-    {
-      title: 'Activity',
-      subtitle:
-        'Only saved operational events.',
-      back,
-      items:
-        data.items.length
-          ? data.items.map(
-              (item, index) => ({
-                id:
-                  `${index}-${item.at}`,
-                label:
-                  `${item.type.replaceAll('_', ' ')} · `
-                  + friendlyDate(item.at)
-              })
-            )
-          : [
-              {
-                id: 'none',
-                label: 'No activity'
-              }
-            ],
-      select: () => {}
-    }
-  );
+  return h(ReadOnlyList, {
+    title: 'Activity',
+    subtitle: 'Only saved operational events.',
+    back,
+    rows: data.items.map((item, index) => ({
+      id: `${index}-${item.at}`,
+      label: item.type.replaceAll('_', ' '),
+      value: friendlyDate(item.at)
+    }))
+  });
 }
 
 function Updates({
@@ -2119,17 +2016,16 @@ function Updates({
   }
 
   return h(
-    Box,
+    Page,
     {
-      flexDirection: 'column'
+      title: 'Updates',
+      subtitle: 'Installed and available Bot Manager revisions.',
+      footer: h(Footer)
     },
-    h(Header),
-    h(Text, {bold: true}, 'Updates'),
     h(
       Box,
       {
-        flexDirection: 'column',
-        marginTop: 1
+        flexDirection: 'column'
       },
       h(Text, {}, `Version           ${data.version}`),
       h(Text, {}, `Installed         ${data.installed_revision}`),
@@ -2148,8 +2044,7 @@ function Updates({
             : 'Update cannot be fast-forwarded safely'
           : 'Up to date'
       )
-    ),
-    h(Footer)
+    )
   );
 }
 
@@ -2235,13 +2130,6 @@ function App() {
     === 'features'
   ) {
     return h(Features, {go, back});
-  }
-
-  if (
-    screen.name
-    === 'feature-settings'
-  ) {
-    return h(FeatureSettings, {go, back});
   }
 
   if (

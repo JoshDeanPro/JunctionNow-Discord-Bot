@@ -32,11 +32,11 @@ Its menus contain:
 - **Overview** for counts and delivery state
 - **Servers** for installed-server controls and delivery state
 - **Features** for Posts and tracked Broadcasts
-- **Manage Bot** for enable/disable state, internal configuration, logs, analytics, and invites
+- **Manage Bot** for enable/disable state, internal configuration, logs, and invites
 - **Storage** for feature usage, destinations, maintenance, retention, and local archives
-- **Settings** for start, stop, updates, and manager uninstall
+- **Settings** for updates and manager uninstall
 
-Feature scheduling lives under **Features → Settings**. Data retention has one
+Post scheduling lives under **Features → Posts → Settings**. Data retention has one
 home under **Storage → Preferences**.
 
 Posts contains its own controls and Add-ons. Request Photos and its destination
@@ -46,6 +46,10 @@ Discord message IDs so an operator can withdraw them later.
 
 Esc is the only menu key that exits the console. Ctrl-C also works. Menu movement
 wraps at the top and bottom.
+
+Menus keep each choice on one line. The arrow shows keyboard focus, while plain
+text states such as Enabled, Paused, or Inactive appear to the right. Multi-select
+screens use checkboxes with Space to select and Enter to submit.
 
 Private values are saved atomically in the gitignored `.env` file with private
 file permissions. Tokens are masked during entry and are never shown again.
@@ -69,8 +73,9 @@ Requirements are Python 3.12 and Node 22.
     ./scripts/install_cli.sh
     jnbot
 
-Open **Setup**, save the Discord token and Application ID, then use **Bot** to
-start the daemon. Linux hosts may install the boot service after setup:
+Open **Manage Bot → Configuration**, save the Discord token and Application ID,
+then enable the bot from **Manage Bot**. Linux hosts may install the boot service
+after setup:
 
     sudo ./scripts/install_daemon.sh
 

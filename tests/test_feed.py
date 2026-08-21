@@ -3,6 +3,7 @@ from app.sync.feed import (
     canonicalize_url,
     clean_description,
     clean_html,
+    clean_title,
 )
 from app.sync.types import FeedPost
 
@@ -11,6 +12,12 @@ def test_clean_html():
     assert clean_html(
         "<p>Hello <strong>world</strong></p>"
     ) == "Hello world"
+
+
+def test_title_removes_redundant_site_suffix():
+    assert clean_title("Example story - JunctionNow.com") == "Example story"
+    assert clean_title("Example story | JUNCTIONNOW.COM") == "Example story"
+    assert clean_title("JunctionNow community update") == "JunctionNow community update"
 
 
 def test_description_four_sentences():

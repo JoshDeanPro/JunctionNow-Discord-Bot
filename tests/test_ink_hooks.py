@@ -52,7 +52,7 @@ def test_operator_dates_are_friendly():
 
     assert "function friendlyDate" in text
     assert "dateStyle: 'medium'" in text
-    assert "Update all posts now" in text
+    assert "label: 'Update All Now'" in text
 
 
 def test_menu_wraps_and_only_escape_exits():
@@ -81,8 +81,8 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "'enter save   esc cancel'" in text
     assert "space select   enter submit   esc back" in text
     assert "label: 'Overview'" in text
-    assert "Detected timezone:" in text
-    assert "Request Photos · configure destination first" in text
+    assert "title: 'Posts Settings'" in text
+    assert "state: data.photo_destination_configured ? undefined : 'Needs destination'" in text
     assert "{id: 'photos', label: 'Photos'}" not in text
     assert "Withdraw Broadcast" in text
     assert "title: 'Storage Features'" in text
@@ -93,7 +93,24 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "Default · JSON" in text
     assert "item.status === 'inactive'" in text
     assert "function runtimeState" in text
-    assert "Inactive · expected to be running" in text
-    assert "description: botState.label" in text
+    assert "return {label: 'Inactive', color: 'red'}" in text
+    assert "state: botState.label" in text
     assert "{id: 'start', label: 'Start bot'}" not in text
     assert "{id: 'stop', label: 'Stop bot'}" not in text
+
+
+def test_cli_uses_distinct_page_modes_and_single_line_menu_rows():
+    text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
+    start = text.index("function Menu")
+    end = text.index("function MultiSelect", start)
+    menu = text[start:end]
+
+    assert "function Page" in text
+    assert "function ReadOnlyList" in text
+    assert "item.label.padEnd" in menu
+    assert "item.description" in menu
+    assert "selectedItem.description" not in menu
+    assert "statusColor" not in text
+    assert "feature-settings" not in text
+    assert "id: 'posts-settings'" in text
+    assert "function postTitle" in text
