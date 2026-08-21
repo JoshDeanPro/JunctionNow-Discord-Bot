@@ -122,6 +122,9 @@ after setup:
 
 The default setup needs no Docker, database server, HTTP API, Redis, or external telemetry.
 
+An independent n8n post-delivery option is in [`n8n/`](n8n/README.md). It does not
+replace the Discord bot or Bot Manager.
+
 ## Validate
 
     .venv/bin/python scripts/check_repo_safety.py

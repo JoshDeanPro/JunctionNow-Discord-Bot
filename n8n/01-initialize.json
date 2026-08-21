@@ -1,0 +1,103 @@
+{
+  "name": "JunctionNow 01 Initialize",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "26426664-6aa9-47f4-aec2-b027efb24517",
+      "name": "Run Setup",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "JunctionNow Posts",
+        "columns": {
+          "column": [
+            {"name": "source_id", "type": "string"},
+            {"name": "title", "type": "string"},
+            {"name": "url", "type": "string"},
+            {"name": "signature", "type": "string"},
+            {"name": "message_id", "type": "string"},
+            {"name": "published_at", "type": "string"}
+          ]
+        },
+        "options": {"createIfNotExists": true}
+      },
+      "id": "9b26eef3-f10f-4964-9334-54658f13d7c4",
+      "name": "Create Posts Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {"url": "https://junctionnow.com/feed/"},
+      "id": "3dc49a08-a435-4b56-afad-1183c145045c",
+      "name": "Read JunctionNow Feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const clean = value => String(value || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\").replace(/\\s+/g, ' ').trim();\nreturn $input.all().slice(0, 100).map(item => {\n  const source = item.json;\n  const url = source.link || source.guid || '';\n  const title = clean(source.title).replace(/\\s*[-|\\u2013\\u2014]\\s*JunctionNow\\.com\\s*$/i, '').trim();\n  const body = clean(source.contentSnippet || source.content || source.summary).slice(0, 4000);\n  const published_at = source.isoDate || source.pubDate || '';\n  return {json: {source_id: source.guid || url, title, url, body, published_at, signature: JSON.stringify([title, body, url])}};\n});"
+      },
+      "id": "2a6cb43b-f84e-4113-a8b0-824b7d15fb1a",
+      "name": "Normalize Current Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {"__rl": true, "value": "JunctionNow Posts", "mode": "name"},
+        "matchType": "allConditions",
+        "filters": {"conditions": [{"keyName": "source_id", "condition": "eq", "keyValue": "={{ $json.source_id }}"}]},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_id": "={{ $json.source_id }}",
+            "title": "={{ $json.title }}",
+            "url": "={{ $json.url }}",
+            "signature": "={{ $json.signature }}",
+            "message_id": "",
+            "published_at": "={{ $json.published_at }}"
+          },
+          "matchingColumns": ["source_id"],
+          "schema": [
+            {"id": "source_id", "displayName": "source_id", "required": false, "defaultMatch": true, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "title", "displayName": "title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "url", "displayName": "url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "signature", "displayName": "signature", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "message_id", "displayName": "message_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "published_at", "displayName": "published_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "18a0e321-8e58-4355-9637-3e139f66d676",
+      "name": "Seed Current Posts",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Run Setup": {"main": [[{"node": "Create Posts Table", "type": "main", "index": 0}]]},
+    "Create Posts Table": {"main": [[{"node": "Read JunctionNow Feed", "type": "main", "index": 0}]]},
+    "Read JunctionNow Feed": {"main": [[{"node": "Normalize Current Posts", "type": "main", "index": 0}]]},
+    "Normalize Current Posts": {"main": [[{"node": "Seed Current Posts", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1"},
+  "active": false,
+  "versionId": "4f3fb4e5-e426-412e-b115-ecdb2fb05a19",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

@@ -1,0 +1,226 @@
+{
+  "name": "JunctionNow 02 Posts",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 30}]}},
+      "id": "6761728d-e812-4210-9b3c-f897895914bf",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, -120]
+    },
+    {
+      "parameters": {},
+      "id": "ee4f501c-268f-4169-a337-c201beb3226a",
+      "name": "Update Posts Now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 120]
+    },
+    {
+      "parameters": {"url": "https://junctionnow.com/feed/"},
+      "id": "ffda4816-d0ab-4624-a359-7275363fcba4",
+      "name": "Read JunctionNow Feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const clean = value => String(value || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\").replace(/\\s+/g, ' ').trim();\nreturn $input.all().slice(0, 100).map(item => {\n  const source = item.json;\n  const url = source.link || source.guid || '';\n  const title = clean(source.title).replace(/\\s*[-|\\u2013\\u2014]\\s*JunctionNow\\.com\\s*$/i, '').trim().slice(0, 256) || 'JunctionNow';\n  const body = clean(source.contentSnippet || source.content || source.summary).slice(0, 4000);\n  const published_at = source.isoDate || source.pubDate || '';\n  return {json: {source_id: source.guid || url, title, url, body, published_at, signature: JSON.stringify([title, body, url])}};\n});"
+      },
+      "id": "aac98429-e77b-4613-8c8f-d3ddc43a97f5",
+      "name": "Normalize Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {"__rl": true, "value": "JunctionNow Posts", "mode": "name"},
+        "returnAll": false,
+        "limit": 1,
+        "matchType": "allConditions",
+        "filters": {"conditions": [{"keyName": "source_id", "condition": "eq", "keyValue": "={{ $json.source_id }}"}]}
+      },
+      "id": "d36a667f-2685-4734-84e5-52dc66f45777",
+      "name": "Find Delivery State",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [720, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Normalize Posts').item.json;\nconst saved = $json;\nif (saved.source_id && saved.signature === source.signature) return [];\nconst action = saved.message_id ? 'edit' : 'create';\nconst footer = action === 'edit' ? 'JunctionNow • Updated' : 'JunctionNow';\nconst embed = {title: source.title, description: source.body || undefined, url: source.url || undefined, footer: {text: footer}};\nif (source.published_at) embed.timestamp = source.published_at;\nreturn [{json: {...source, action, message_id: saved.message_id || '', payload: {content: '', embeds: [embed], allowed_mentions: {parse: [], roles: [], users: [], replied_user: false}}}}];"
+      },
+      "id": "d84488e2-c5a7-4e53-873e-7839ab3765dd",
+      "name": "Choose Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [{"id": "b996ec12-552f-44e8-b156-1d6531ac8cd4", "leftValue": "={{ $json.action }}", "rightValue": "create", "operator": {"type": "string", "operation": "equals"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2e504661-afae-44f5-84c5-413c9a66a3f3",
+      "name": "New Post",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://discord.com/api/v10/channels/{{ $vars.DISCORD_CHANNEL_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {"batching": {"batch": {"batchSize": 1, "batchInterval": 300}}, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "eb441717-3540-4863-a4e9-c7ca58a1e5bb",
+      "name": "Create Discord Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, -120],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://discord.com/api/v10/channels/{{ $vars.DISCORD_CHANNEL_ID }}/messages/{{ $json.message_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {"batching": {"batch": {"batchSize": 1, "batchInterval": 300}}, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "2561810b-941e-4c53-84cc-84d3ee86ead2",
+      "name": "Edit Discord Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 120],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3},
+          "conditions": [{"id": "12bd61b4-259a-47db-b116-dbd1d4b2d33b", "leftValue": "={{ $json.statusCode }}", "rightValue": 404, "operator": {"type": "number", "operation": "equals"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9c87627a-e290-479c-9929-70d4376f1404",
+      "name": "Message Missing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1680, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://discord.com/api/v10/channels/{{ $vars.DISCORD_CHANNEL_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($('Choose Action').item.json.payload) }}",
+        "options": {"batching": {"batch": {"batchSize": 1, "batchInterval": 300}}, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "4dc9cc81-a2c3-4b2e-9d6c-c3e793fe1bf3",
+      "name": "Recreate Discord Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, 0],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Choose Action').item.json;\nconst status = Number($json.statusCode);\nif (status < 200 || status >= 300) throw new Error(`Discord delivery failed with status ${status || 'unknown'}`);\nconst message_id = String($json.body?.id || source.message_id || '');\nif (!message_id) throw new Error('Discord did not return a message ID');\nreturn [{json: {source_id: source.source_id, title: source.title, url: source.url, signature: source.signature, message_id, published_at: source.published_at}}];"
+      },
+      "id": "534a7657-31de-4d88-8ba0-e598b0903d85",
+      "name": "Prepare Saved State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2160, -120]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {"__rl": true, "value": "JunctionNow Posts", "mode": "name"},
+        "matchType": "allConditions",
+        "filters": {"conditions": [{"keyName": "source_id", "condition": "eq", "keyValue": "={{ $json.source_id }}"}]},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_id": "={{ $json.source_id }}",
+            "title": "={{ $json.title }}",
+            "url": "={{ $json.url }}",
+            "signature": "={{ $json.signature }}",
+            "message_id": "={{ $json.message_id }}",
+            "published_at": "={{ $json.published_at }}"
+          },
+          "matchingColumns": ["source_id"],
+          "schema": [
+            {"id": "source_id", "displayName": "source_id", "required": false, "defaultMatch": true, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "title", "displayName": "title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "url", "displayName": "url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "signature", "displayName": "signature", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "message_id", "displayName": "message_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "published_at", "displayName": "published_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c2cd8905-aae6-42bd-8107-10380b625bb2",
+      "name": "Save Delivery State",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [2400, -120]
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes": {"main": [[{"node": "Read JunctionNow Feed", "type": "main", "index": 0}]]},
+    "Update Posts Now": {"main": [[{"node": "Read JunctionNow Feed", "type": "main", "index": 0}]]},
+    "Read JunctionNow Feed": {"main": [[{"node": "Normalize Posts", "type": "main", "index": 0}]]},
+    "Normalize Posts": {"main": [[{"node": "Find Delivery State", "type": "main", "index": 0}]]},
+    "Find Delivery State": {"main": [[{"node": "Choose Action", "type": "main", "index": 0}]]},
+    "Choose Action": {"main": [[{"node": "New Post", "type": "main", "index": 0}]]},
+    "New Post": {"main": [[{"node": "Create Discord Message", "type": "main", "index": 0}], [{"node": "Edit Discord Message", "type": "main", "index": 0}]]},
+    "Create Discord Message": {"main": [[{"node": "Prepare Saved State", "type": "main", "index": 0}]]},
+    "Edit Discord Message": {"main": [[{"node": "Message Missing", "type": "main", "index": 0}]]},
+    "Message Missing": {"main": [[{"node": "Recreate Discord Message", "type": "main", "index": 0}], [{"node": "Prepare Saved State", "type": "main", "index": 0}]]},
+    "Recreate Discord Message": {"main": [[{"node": "Prepare Saved State", "type": "main", "index": 0}]]},
+    "Prepare Saved State": {"main": [[{"node": "Save Delivery State", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1", "timezone": "America/Denver"},
+  "active": false,
+  "versionId": "860bb9e8-c1cd-4278-b6d6-8967155c4fc8",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
