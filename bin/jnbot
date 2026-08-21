@@ -18,19 +18,39 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 INSTALL_DIR="$HOME/.local/bin"
 INSTALLED="$INSTALL_DIR/jnbot"
-
-if [ ! -e "$INSTALLED" ] && [ ! -L "$INSTALLED" ]; then
-    mkdir -p "$INSTALL_DIR"
-    ln -s "$ROOT/bin/jnbot" "$INSTALLED"
-fi
-
 PYTHON="$ROOT/.venv/bin/python"
 UI="$ROOT/ui/src/index.mjs"
+NEEDS_INSTALL=0
 
-if [ ! -x "$PYTHON" ]; then
-    echo "Python environment is missing:"
-    echo "  $PYTHON"
-    exit 1
+if [ ! -x "$PYTHON" ] ||
+   ! "$PYTHON" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))' 2>/dev/null ||
+   [ ! -d "$ROOT/ui/node_modules" ]; then
+    NEEDS_INSTALL=1
+fi
+
+if [ "$NEEDS_INSTALL" -eq 1 ]; then
+    if ! command -v python3.12 >/dev/null 2>&1; then
+        echo "Python 3.12 is required."
+        exit 1
+    fi
+
+    if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+        echo "Node 22 or newer is required."
+        exit 1
+    fi
+
+    NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+
+    if [ "$NODE_MAJOR" -lt 22 ]; then
+        echo "Node 22 or newer is required."
+        exit 1
+    fi
+
+    echo "Installing JunctionNow Discord Bot Manager..."
+    python3.12 -m venv --clear "$ROOT/.venv"
+    "$PYTHON" -m pip install --quiet --upgrade pip
+    "$PYTHON" -m pip install --quiet -e "$ROOT[dev]"
+    npm --prefix "$ROOT/ui" ci --silent
 fi
 
 if [ ! -f "$UI" ]; then
@@ -39,12 +59,9 @@ if [ ! -f "$UI" ]; then
     exit 1
 fi
 
-if [ ! -d "$ROOT/ui/node_modules" ]; then
-    echo "JunctionNow operator UI dependencies are missing."
-    echo
-    echo "Run:"
-    echo "  npm --prefix \"$ROOT/ui\" install"
-    exit 1
+if [ ! -e "$INSTALLED" ] && [ ! -L "$INSTALLED" ]; then
+    mkdir -p "$INSTALL_DIR"
+    ln -s "$ROOT/bin/jnbot" "$INSTALLED"
 fi
 
 exec node "$UI"

@@ -65,3 +65,5 @@ def test_manager_self_install_does_not_overwrite_existing_command():
 
     assert '[ ! -e "$INSTALLED" ] && [ ! -L "$INSTALLED" ]' in text
     assert 'ln -s "$ROOT/bin/jnbot" "$INSTALLED"' in text
+    assert "python3.12 -m venv" in text
+    assert 'npm --prefix "$ROOT/ui" ci --silent' in text

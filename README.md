@@ -81,11 +81,36 @@ immediately and take effect after the bot restarts.
 
 Requirements are Python 3.12 and Node 22.
 
-    python3.12 -m venv .venv
-    .venv/bin/pip install -e ".[dev]"
-    npm --prefix ui ci
-    ./scripts/install_cli.sh
-    jnbot
+After cloning on macOS or Linux, run:
+
+    ~/JunctionNow-Discord-Bot/bin/jnbot
+
+On Windows PowerShell, run:
+
+    & "$HOME\JunctionNow-Discord-Bot\scripts\install.ps1"
+
+The first run installs local dependencies and the `jnbot` command, then opens
+Initial Setup. Later runs use `jnbot` directly.
+
+The installer checks for Python 3.12 and Node 22 or newer first. If either is
+missing, install it with one of these commands, then run the installer again:
+
+macOS:
+
+    brew install python@3.12 node@22
+
+Ubuntu 24.04:
+
+    sudo apt install python3.12 python3.12-venv npm
+    sudo snap install node --classic --channel=22
+
+Other Linux systems should install Python 3.12, its `venv` module, Node 22 or
+newer, and npm through the system package manager.
+
+Windows PowerShell:
+
+    winget install Python.Python.3.12
+    winget install OpenJS.NodeJS.LTS
 
 Open **Manage Bot → Configuration**, save the Discord token and Application ID,
 then enable the bot from **Manage Bot**. Linux hosts may install the boot service

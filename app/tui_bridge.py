@@ -28,7 +28,11 @@ from app.updates import install_update, update_status
 
 ROOT = Path(__file__).resolve().parents[1]
 PID_FILE = ROOT / "data" / "junctionnow.pid"
-INSTALLED_COMMAND = Path.home() / ".local" / "bin" / "jnbot"
+INSTALLED_COMMAND = (
+    Path.home() / ".junctionnow" / "bin" / "jnbot.cmd"
+    if os.name == "nt"
+    else Path.home() / ".local" / "bin" / "jnbot"
+)
 
 
 def payload() -> dict:
@@ -202,9 +206,22 @@ def uninstall_manager() -> dict:
         raise RuntimeError("The JunctionNow installation could not be verified.")
 
     expected = (ROOT / "bin" / "jnbot").resolve()
+    windows_launcher = (
+        f'@echo off\nnode "{ROOT / "ui" / "src" / "index.mjs"}" %*'
+    )
 
     if INSTALLED_COMMAND.exists() or INSTALLED_COMMAND.is_symlink():
-        if not INSTALLED_COMMAND.is_symlink() or INSTALLED_COMMAND.resolve() != expected:
+        managed = (
+            INSTALLED_COMMAND.is_symlink()
+            and INSTALLED_COMMAND.resolve() == expected
+        ) or (
+            os.name == "nt"
+            and INSTALLED_COMMAND.is_file()
+            and INSTALLED_COMMAND.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+            == windows_launcher
+        )
+
+        if not managed:
             raise RuntimeError("The installed jnbot command is not managed by this project.")
 
     service = Path("/etc/systemd/system/junctionnow-discord.service")
@@ -240,7 +257,7 @@ def uninstall_manager() -> dict:
             text=True,
         )
 
-    if INSTALLED_COMMAND.is_symlink():
+    if INSTALLED_COMMAND.exists() or INSTALLED_COMMAND.is_symlink():
         INSTALLED_COMMAND.unlink()
 
     shutil.rmtree(ROOT)
