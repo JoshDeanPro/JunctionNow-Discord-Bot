@@ -1460,7 +1460,7 @@ function Servers({
             ? 'Active'
             : server.channel_id
               ? 'Disabled'
-              : 'Needs setup',
+              : 'Awaiting server setup',
       stateColor:
         server.banned
           ? 'red'
@@ -1509,7 +1509,7 @@ function Server({
         {
           id: 'channel',
           label: 'Posting Channel',
-          state: server.channel_id || 'Not configured',
+          state: server.channel_id || 'None selected',
           stateColor: server.channel_id ? MUTED : 'yellow'
         },
         {

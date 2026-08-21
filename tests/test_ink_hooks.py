@@ -114,3 +114,5 @@ def test_cli_uses_distinct_page_modes_and_single_line_menu_rows():
     assert "feature-settings" not in text
     assert "id: 'posts-settings'" in text
     assert "function postTitle" in text
+    assert "'Awaiting server setup'" in text
+    assert "state: server.channel_id || 'None selected'" in text
