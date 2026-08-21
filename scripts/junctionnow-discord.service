@@ -1,0 +1,19 @@
+[Unit]
+Description=JunctionNow Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=junctionnow
+Group=junctionnow
+WorkingDirectory=/opt/junctionnow-discord
+EnvironmentFile=/opt/junctionnow-discord/.env
+ExecStart=/opt/junctionnow-discord/.venv/bin/python -m app.main
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
