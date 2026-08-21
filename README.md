@@ -79,7 +79,8 @@ effect after the bot restarts.
 
 ## Install
 
-Requirements are Python 3.12 and Node 22.
+GitHub CLI is required because the repository is private. Sign in with
+`gh auth login` before running the installer.
 
 One-shot install on macOS or Linux:
 
@@ -90,29 +91,11 @@ One-shot install on Windows PowerShell:
     $i=New-TemporaryFile; gh api -H "Accept: application/vnd.github.raw+json" repos/JoshDeanPro/JunctionNow-Discord-Bot/contents/scripts/install.ps1 > $i; & $i; Remove-Item $i
 
 The installer creates a separate runtime under the user profile, installs only
-runtime dependencies, adds the `jnbot` command, and opens Initial Setup. A
-development clone is never used as the installed application. Later runs use
-`jnbot` directly.
-
-The installer checks for Python 3.12 and Node 22 or newer first. If either is
-missing, install it with one of these commands, then run the installer again:
-
-macOS:
-
-    brew install python@3.12 node@22
-
-Ubuntu 24.04:
-
-    sudo apt install python3.12 python3.12-venv npm
-    sudo snap install node --classic --channel=22
-
-Other Linux systems should install Python 3.12, its `venv` module, Node 22 or
-newer, and npm through the system package manager.
-
-Windows PowerShell:
-
-    winget install Python.Python.3.12
-    winget install OpenJS.NodeJS.LTS
+the required packages, adds the `jnbot` command, and opens Initial Setup. It uses
+an existing Python 3.12 or Node 22+ installation when compatible. Otherwise, it
+installs a private runtime inside JunctionNow. It does not replace, downgrade,
+or change system runtimes. A development clone is never used as the installed
+application. Later runs use `jnbot` directly.
 
 Open **Manage Bot → Configuration**, save the Discord token, then enable the bot
 from **Manage Bot**. Linux hosts may install the boot service

@@ -94,10 +94,21 @@ def test_manager_self_install_does_not_overwrite_existing_command():
     assert 'APP_ROOT="${JNBOT_INSTALL_ROOT:-$HOME/.local/share/junctionnow}"' in text
     assert 'ln -s "$APP_ROOT/bin/jnbot" "$COMMAND_PATH"' in text
     assert "managed by another application" in text
-    assert "python3.12 -m venv" in text
+    assert 'UV_PYTHON_INSTALL_DIR="$RUNTIME_ROOT/python"' in text
+    assert "https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt" in text
+    assert '"$ACTUAL_HASH" != "$EXPECTED_HASH"' in text
     assert 'pip install --quiet -e "$APP_ROOT"' in text
-    assert 'npm --prefix "$APP_ROOT/ui" ci --omit=dev --silent' in text
+    assert '"$NPM_COMMAND" --prefix "$APP_ROOT/ui" ci --omit=dev --silent' in text
     assert '"$APP_ROOT[dev]"' not in text
+
+
+def test_windows_installer_keeps_runtimes_private():
+    text = Path("scripts/install.ps1").read_text(encoding="utf-8")
+
+    assert '$RuntimeRoot = Join-Path $AppRoot ".runtime"' in text
+    assert "$env:UV_NO_MODIFY_PATH = \"1\"" in text
+    assert "Get-FileHash $NodeArchive -Algorithm SHA256" in text
+    assert "winget install" not in text
 
 
 def test_starting_an_active_bot_does_not_spawn_another_process(tmp_path, monkeypatch):

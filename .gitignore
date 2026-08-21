@@ -25,6 +25,7 @@ temp/
 *.sqlite3
 
 .venv/
+.runtime/
 venv/
 env/
 

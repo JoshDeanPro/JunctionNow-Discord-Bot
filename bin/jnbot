@@ -18,10 +18,15 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PYTHON="$ROOT/.venv/bin/python"
 UI="$ROOT/ui/src/index.mjs"
+NODE="$ROOT/.runtime/node/bin/node"
 
-if [ ! -x "$PYTHON" ] || [ ! -f "$UI" ] || [ ! -d "$ROOT/ui/node_modules" ]; then
+if [ ! -x "$NODE" ]; then
+    NODE="$(command -v node || true)"
+fi
+
+if [ ! -x "$PYTHON" ] || [ ! -x "$NODE" ] || [ ! -f "$UI" ] || [ ! -d "$ROOT/ui/node_modules" ]; then
     echo "The JunctionNow installation is incomplete. Run the installer again."
     exit 1
 fi
 
-exec node "$UI"
+exec "$NODE" "$UI"
