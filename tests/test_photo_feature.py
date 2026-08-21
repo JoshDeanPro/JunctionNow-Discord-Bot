@@ -2,9 +2,7 @@ from pathlib import Path
 
 import discord
 
-from app.photos import (
-    PhotoPostView,
-)
+from app.photos import PhotoPostView
 
 
 def test_photo_components_exist():
@@ -30,20 +28,45 @@ def test_photo_view_is_persistent():
     assert view.timeout is None
 
 
-def test_management_has_photo_and_server_tools():
-    text = Path(
+def test_operator_tools_moved_to_ink():
+    assert not Path(
         "app/management.py"
-    ).read_text(encoding="utf-8")
+    ).exists()
 
-    assert 'label="Request Photos"' in text
-    assert 'label="Servers"' in text
-    assert 'label="Access Link"' in text
+    assert Path(
+        "app/control.py"
+    ).exists()
+
+    assert Path(
+        "app/tui_bridge.py"
+    ).exists()
+
+    assert Path(
+        "ui/src/index.mjs"
+    ).exists()
+
+    text = Path(
+        "ui/src/index.mjs"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert "Request photos" in text
+    assert "Servers" in text
+    assert "Broadcast" in text
+    assert "Ban server" in text
 
 
 def test_low_noise_http_logging():
     text = Path(
         "app/logging_config.py"
-    ).read_text(encoding="utf-8")
+    ).read_text(
+        encoding="utf-8"
+    )
 
-    assert 'logging.getLogger("httpx")' in text
+    assert (
+        'logging.getLogger("httpx")'
+        in text
+    )
+
     assert "logging.WARNING" in text

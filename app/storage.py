@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import fcntl
 import json
 import os
 import shutil
 import tempfile
 from collections.abc import Callable
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar
@@ -47,6 +49,30 @@ class JsonStateStore:
         self.backup_count = settings.state_backup_count
 
         self.lock = asyncio.Lock()
+        self.process_lock_path = self.path.with_suffix(
+            self.path.suffix + ".lock"
+        )
+
+    @contextmanager
+    def _process_lock(self):
+        self.process_lock_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        with self.process_lock_path.open("a+") as handle:
+            fcntl.flock(
+                handle.fileno(),
+                fcntl.LOCK_EX,
+            )
+
+            try:
+                yield
+            finally:
+                fcntl.flock(
+                    handle.fileno(),
+                    fcntl.LOCK_UN,
+                )
 
     async def initialize(self) -> None:
         async with self.lock:
@@ -214,14 +240,15 @@ class JsonStateStore:
         self,
     ) -> dict[str, Any]:
         async with self.lock:
-            if not self.path.exists():
-                self._write_sync(
-                    default_state()
-                )
+            with self._process_lock():
+                if not self.path.exists():
+                    self._write_sync(
+                        default_state()
+                    )
 
-            return copy.deepcopy(
-                self._read_sync()
-            )
+                return copy.deepcopy(
+                    self._read_sync()
+                )
 
     async def mutate(
         self,
@@ -231,16 +258,17 @@ class JsonStateStore:
         ],
     ) -> T:
         async with self.lock:
-            state = self._read_sync()
+            with self._process_lock():
+                state = self._read_sync()
 
-            result = callback(state)
+                result = callback(state)
 
-            self._prune_posts(state)
-            self._prune_events(state)
+                self._prune_posts(state)
+                self._prune_events(state)
 
-            self._write_sync(state)
+                self._write_sync(state)
 
-            return copy.deepcopy(result)
+                return copy.deepcopy(result)
 
     def _prune_events(
         self,

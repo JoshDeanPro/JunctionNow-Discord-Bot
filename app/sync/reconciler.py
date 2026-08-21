@@ -226,6 +226,12 @@ class SyncEngine:
                         upsert["record"]
                     )
 
+                    if stored_record.get(
+                        "withdrawn",
+                        False,
+                    ):
+                        continue
+
                     state = (
                         await self.store.snapshot()
                     )
