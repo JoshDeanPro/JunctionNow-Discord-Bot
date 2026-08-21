@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from app.bot.components import ConfigView, StatusView
+from app.bot.components import ConfigView
 
 
 class JunctionCommands(commands.Cog):
@@ -12,7 +12,7 @@ class JunctionCommands(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="config",
+        name="setup",
         description="Set up JunctionNow for this server",
     )
     @app_commands.allowed_installs(
@@ -30,7 +30,7 @@ class JunctionCommands(commands.Cog):
     @app_commands.checks.has_permissions(
         manage_guild=True,
     )
-    async def config(
+    async def setup(
         self,
         interaction: discord.Interaction,
     ) -> None:
@@ -45,6 +45,13 @@ class JunctionCommands(commands.Cog):
             guild.id
         )
 
+        if record and record.get("channel_id"):
+            await interaction.response.send_message(
+                "JunctionNow is already set up here. Use `/edit` to make changes.",
+                ephemeral=True,
+            )
+            return
+
         await interaction.response.send_message(
             view=ConfigView(
                 self.bot,
@@ -56,8 +63,8 @@ class JunctionCommands(commands.Cog):
         )
 
     @app_commands.command(
-        name="status",
-        description="Show JunctionNow setup for this server",
+        name="edit",
+        description="Change JunctionNow settings for this server",
     )
     @app_commands.allowed_installs(
         guilds=True,
@@ -74,7 +81,7 @@ class JunctionCommands(commands.Cog):
     @app_commands.checks.has_permissions(
         manage_guild=True,
     )
-    async def status(
+    async def edit(
         self,
         interaction: discord.Interaction,
     ) -> None:
@@ -83,23 +90,21 @@ class JunctionCommands(commands.Cog):
         if guild is None:
             return
 
-        state = await self.bot.store.snapshot()
+        record = await self.bot.store.get_guild(guild.id)
 
-        record = (
-            state.get("guilds", {})
-            .get(str(guild.id))
-        )
-
-        deliveries = (
-            state.get("deliveries", {})
-            .get(str(guild.id), {})
-        )
+        if not record or not record.get("channel_id"):
+            await interaction.response.send_message(
+                "JunctionNow is not set up here yet. Use `/setup` first.",
+                ephemeral=True,
+            )
+            return
 
         await interaction.response.send_message(
-            view=StatusView(
+            view=ConfigView(
+                self.bot,
                 guild,
+                interaction.user.id,
                 record,
-                len(deliveries),
             ),
             ephemeral=True,
         )

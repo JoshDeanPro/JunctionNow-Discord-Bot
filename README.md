@@ -15,25 +15,28 @@ limits. Article text cannot create mentions, and edits do not ping roles again.
 
 Server managers use only:
 
-    /config
-    /status
+    /setup
+    /edit
 
-Both commands require **Manage Server** permission. `/config` selects or creates
-a posting channel, chooses optional mention roles, and enables delivery.
+Both commands require **Manage Server** permission. `/setup` guides first-time
+setup. After that, `/edit` changes the channel or mention roles and can stop or
+resume posts.
 
 ## jnbot
 
-`jnbot` is the local operator console and the supported place to manage the bot.
+`jnbot` is the JunctionNow Discord Bot Manager and the supported place to manage
+the bot. Running `./bin/jnbot` safely installs the command when it is missing.
 Its menus contain:
 
 - **Dashboard** for counts and delivery state
-- **Setup** for the private token, Application ID, and photo destination
-- **Servers** for installed servers, channels, bans, and retained data
-- **Posts** for immediate updates, automatic updates, article actions, and photos
-- **Photos** and **Activity** for recent local records
-- **Broadcast** for confirmed, mention-safe messages
-- **Updates** for approved fast-forward updates from GitHub main
-- **Bot** for daemon start and stop
+- **Bot Settings** for setup, required permissions, invites, installed servers,
+  and bot start or stop
+- **Features** for Posts, Photos, and Broadcast
+- **Activity** for recent local records
+- **Bot Manager** for approved updates or uninstalling the local command
+
+Posts contains its own controls and Add-ons. Request Photos and its destination
+live only under **Features → Posts → Add-ons**.
 
 Esc is the only menu key that exits the console. Ctrl-C also works. Menu movement
 wraps at the top and bottom.

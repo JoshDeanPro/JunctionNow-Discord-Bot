@@ -74,3 +74,7 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "enter save   esc cancel" in text
     assert "title: 'Add-ons'" in text
     assert "'Request Photos'" in text
+    assert "title: 'Features'" in text
+    assert "title: 'Bot Settings'" in text
+    assert "title: 'Bot Manager'" in text
+    assert "'enter save   esc cancel'" in text

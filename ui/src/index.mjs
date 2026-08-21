@@ -149,6 +149,67 @@ function bridge(command, payload = {}) {
   );
 }
 
+function copyToClipboard(value) {
+  const commands =
+    process.platform === 'darwin'
+      ? [['pbcopy', []]]
+      : process.platform === 'win32'
+        ? [['clip', []]]
+        : [
+            ['wl-copy', []],
+            ['xclip', ['-selection', 'clipboard']]
+          ];
+
+  return new Promise(
+    (resolvePromise, reject) => {
+      const attempt = index => {
+        const command = commands[index];
+
+        if (!command) {
+          reject(new Error('No supported clipboard command was found.'));
+          return;
+        }
+
+        const child = spawn(
+          command[0],
+          command[1],
+          {
+            stdio: ['pipe', 'ignore', 'ignore']
+          }
+        );
+
+        let failed = false;
+
+        child.on(
+          'error',
+          () => {
+            failed = true;
+            attempt(index + 1);
+          }
+        );
+        child.on(
+          'close',
+          code => {
+            if (failed) {
+              return;
+            }
+
+            if (code === 0) {
+              resolvePromise();
+            } else {
+              attempt(index + 1);
+            }
+          }
+        );
+        child.stdin.on('error', () => {});
+        child.stdin.end(value);
+      };
+
+      attempt(0);
+    }
+  );
+}
+
 function Header({crumb = []}) {
   return h(
     Box,
@@ -162,7 +223,7 @@ function Header({crumb = []}) {
         color: BLUE,
         bold: true
       },
-      '◆ JunctionNow'
+      '◆ JunctionNow Discord Bot Manager'
     ),
     crumb.length
       ? h(
@@ -191,7 +252,7 @@ function Footer({root = false}) {
         color: DIM
       },
       root
-        ? '↑↓ move   enter select   ? help   esc exit'
+        ? '↑↓ move   enter select   esc exit'
         : '↑↓ move   enter select   ← back   esc back'
     )
   );
@@ -642,45 +703,29 @@ function Root({
     Menu,
     {
       root: true,
-      title: 'Operator Console',
+      title: 'Discord Bot Manager',
       subtitle:
-        'Local control for the JunctionNow Discord service.',
+        'Local control for JunctionNow.',
       items: [
         {
           id: 'dashboard',
           label: 'Dashboard'
         },
         {
-          id: 'setup',
-          label: 'Setup'
+          id: 'bot-settings',
+          label: 'Bot Settings'
         },
         {
-          id: 'servers',
-          label: 'Servers'
-        },
-        {
-          id: 'posts',
-          label: 'Posts'
-        },
-        {
-          id: 'photos',
-          label: 'Photos'
-        },
-        {
-          id: 'broadcast',
-          label: 'Broadcast'
+          id: 'features',
+          label: 'Features'
         },
         {
           id: 'activity',
           label: 'Activity'
         },
         {
-          id: 'updates',
-          label: 'Updates'
-        },
-        {
-          id: 'bot',
-          label: 'Bot'
+          id: 'manager',
+          label: 'Bot Manager'
         }
       ],
       select:
@@ -825,6 +870,120 @@ function Dashboard({
   );
 }
 
+function BotSettings({
+  go,
+  back
+}) {
+  return h(
+    Menu,
+    {
+      title: 'Bot Settings',
+      subtitle: 'Setup, permissions, invites, and service controls.',
+      back,
+      items: [
+        {id: 'setup', label: 'Configure bot'},
+        {id: 'servers', label: 'Installed servers'},
+        {id: 'invite-copy', label: 'Copy invite link'},
+        {id: 'invite-show', label: 'Invite bot or restore permissions'},
+        {id: 'start', label: 'Start bot'},
+        {id: 'stop', label: 'Stop bot'}
+      ],
+      select: item => {
+        if (item.id === 'start' || item.id === 'stop') {
+          go({name: 'bot-action', action: item.id});
+          return;
+        }
+
+        go({name: item.id});
+      }
+    }
+  );
+}
+
+function Features({
+  go,
+  back
+}) {
+  return h(
+    Menu,
+    {
+      title: 'Features',
+      subtitle: 'Features provided by the JunctionNow bot.',
+      back,
+      items: [
+        {id: 'posts', label: 'Posts'},
+        {id: 'photos', label: 'Photos'},
+        {id: 'broadcast', label: 'Broadcast'}
+      ],
+      select: item => go({name: item.id})
+    }
+  );
+}
+
+function Manager({
+  go,
+  back
+}) {
+  return h(
+    Menu,
+    {
+      title: 'Bot Manager',
+      subtitle: 'Update or remove the local manager command.',
+      back,
+      items: [
+        {id: 'updates', label: 'Updates'},
+        {id: 'manager-uninstall', label: 'Uninstall Bot Manager'}
+      ],
+      select: item => go({name: item.id})
+    }
+  );
+}
+
+function Invite({
+  copy,
+  back
+}) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(
+    () => {
+      bridge('invite-link')
+        .then(
+          async result => {
+            if (copy) {
+              await copyToClipboard(result.url);
+            }
+
+            setData(result);
+          }
+        )
+        .catch(setError);
+    },
+    [copy]
+  );
+
+  if (error) {
+    return h(Message, {title: 'Invite link', message: error.message, back});
+  }
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  return h(
+    Message,
+    {
+      title: copy ? 'Invite link copied' : 'Invite link',
+      message:
+        copy
+          ? 'The invite link is ready to paste.'
+          : `${data.url}\n\nRequired: ${data.permissions.join(', ')}`,
+      back
+    }
+  );
+}
+
 function Setup({
   go,
   back
@@ -864,21 +1023,11 @@ function Setup({
             data.application_id
               ? `Application ID: ${data.application_id}`
               : 'Application ID: required'
-        },
-        {
-          id: 'photo-destination',
-          label:
-            data.photo_destination_configured
-              ? 'Photo destination: configured'
-              : 'Photo destination: not configured'
         }
       ],
       select:
         item => go({
-          name:
-            item.id === 'photo-destination'
-              ? 'photo-setup'
-              : 'setup-value',
+          name: 'setup-value',
           setting: item.id,
           config: data
         })
@@ -1117,6 +1266,10 @@ function Posts({
                 ? 'green'
                 : MUTED
           },
+          {
+            id: 'addons',
+            label: 'Add-ons'
+          },
           ...data.items.map(
             post => ({
               id: post.post_id,
@@ -1195,6 +1348,11 @@ function Posts({
           return;
         }
 
+        if (item.id === 'addons') {
+          go({name: 'posts-addons'});
+          return;
+        }
+
         go({
           name: 'post',
           post: item.post
@@ -1222,10 +1380,6 @@ function Post({
       back,
       items: [
         {
-          id: 'addons',
-          label: 'Add-ons'
-        },
-        {
           id:
             post.withdrawn
               ? 'restore'
@@ -1242,10 +1396,7 @@ function Post({
       ],
       select:
         item => go({
-          name:
-            item.id === 'addons'
-              ? 'post-addons'
-              : 'post-action',
+          name: 'post-action',
           action: item.id,
           post
         })
@@ -1253,33 +1404,89 @@ function Post({
   );
 }
 
-function PostAddons({
-  screen,
+function PostsAddons({
   go,
   back
 }) {
-  const post = screen.post;
+  const [data, setData] = useState(null);
+
+  useEffect(
+    () => {
+      bridge('config-status').then(setData);
+    },
+    []
+  );
+
+  if (!data) {
+    return h(Loading);
+  }
 
   return h(
     Menu,
     {
       title: 'Add-ons',
-      subtitle: post.title || 'JunctionNow',
+      subtitle: 'Optional Posts features.',
       back,
       items: [
         {
           id: 'photos',
+          label: 'Request Photos'
+        },
+        {
+          id: 'photo-destination',
           label:
-            post.photo_requested
-              ? 'Stop requesting photos'
-              : 'Request Photos'
+            data.photo_destination_configured
+              ? 'Photo destination: configured'
+              : 'Photo destination: not configured'
         }
       ],
       select:
+        item => go(
+          item.id === 'photo-destination'
+            ? {name: 'photo-setup', config: data}
+            : {name: 'photo-posts'}
+        )
+    }
+  );
+}
+
+function PhotoPosts({
+  go,
+  back
+}) {
+  const [data, setData] = useState(null);
+
+  useEffect(
+    () => {
+      bridge('posts').then(setData);
+    },
+    []
+  );
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  return h(
+    Menu,
+    {
+      title: 'Request Photos',
+      subtitle: 'Choose an article.',
+      back,
+      items: data.items.map(
+        post => ({
+          id: post.post_id,
+          label: post.title || 'JunctionNow',
+          status: post.photo_requested ? '●' : '○',
+          statusColor: post.photo_requested ? BLUE : DIM,
+          post
+        })
+      ),
+      select:
         item => go({
           name: 'post-action',
-          action: item.id,
-          post
+          action: 'photos',
+          post: item.post
         })
     }
   );
@@ -1377,36 +1584,6 @@ function Activity({
               }
             ],
       select: () => {}
-    }
-  );
-}
-
-function Bot({
-  go,
-  back
-}) {
-  return h(
-    Menu,
-    {
-      title: 'Bot',
-      subtitle:
-        'Daemon controls.',
-      back,
-      items: [
-        {
-          id: 'start',
-          label: 'Start daemon'
-        },
-        {
-          id: 'stop',
-          label: 'Stop daemon'
-        }
-      ],
-      select:
-        item => go({
-          name: 'bot-action',
-          action: item.id
-        })
     }
   );
 }
@@ -1561,6 +1738,61 @@ function App() {
       Dashboard,
       {
         back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'bot-settings'
+  ) {
+    return h(BotSettings, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'features'
+  ) {
+    return h(Features, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'manager'
+  ) {
+    return h(Manager, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'invite-copy'
+    || screen.name === 'invite-show'
+  ) {
+    return h(
+      Invite,
+      {
+        copy: screen.name === 'invite-copy',
+        back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'manager-uninstall'
+  ) {
+    return h(
+      Confirm,
+      {
+        title: 'Uninstall Bot Manager',
+        message:
+          'Remove the local jnbot command? Bot data and private settings stay in place.',
+        back,
+        confirm:
+          async () => {
+            await bridge('manager-uninstall');
+            done('Bot Manager command removed. This open session will keep working.');
+          }
       }
     );
   }
@@ -1877,16 +2109,22 @@ function App() {
 
   if (
     screen.name
-    === 'post-addons'
+    === 'posts-addons'
   ) {
     return h(
-      PostAddons,
+      PostsAddons,
       {
-        screen,
         go,
         back
       }
     );
+  }
+
+  if (
+    screen.name
+    === 'photo-posts'
+  ) {
+    return h(PhotoPosts, {go, back});
   }
 
   if (
@@ -2070,19 +2308,6 @@ function App() {
               'Broadcast queued.'
             );
           }
-      }
-    );
-  }
-
-  if (
-    screen.name
-    === 'bot'
-  ) {
-    return h(
-      Bot,
-      {
-        go,
-        back
       }
     );
   }

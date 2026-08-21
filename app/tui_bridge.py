@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import discord
+
 from app.config import get_settings
 from app.control import enqueue
 from app.local_config import clear_photo_destination, configured, save_value
@@ -16,6 +18,7 @@ from app.updates import install_update, update_status
 
 ROOT = Path(__file__).resolve().parents[1]
 PID_FILE = ROOT / "data" / "junctionnow.pid"
+INSTALLED_COMMAND = Path.home() / ".local" / "bin" / "jnbot"
 
 
 def payload() -> dict:
@@ -144,6 +147,52 @@ def daemon_stop() -> dict:
     return {
         "running": False,
     }
+
+
+def invite_link() -> dict:
+    application_id = configured().get("application_id")
+
+    if not application_id:
+        raise ValueError("Save the Discord Application ID in Bot Settings first.")
+
+    permissions = discord.Permissions.none()
+    permissions.update(
+        view_channel=True,
+        send_messages=True,
+        embed_links=True,
+        attach_files=True,
+        read_message_history=True,
+    )
+
+    return {
+        "url": str(
+            discord.utils.oauth_url(
+                int(application_id),
+                permissions=permissions,
+                scopes=("bot", "applications.commands"),
+            )
+        ),
+        "permissions": [
+            "View Channels",
+            "Send Messages",
+            "Embed Links",
+            "Attach Files",
+            "Read Message History",
+        ],
+    }
+
+
+def uninstall_manager() -> dict:
+    expected = (ROOT / "bin" / "jnbot").resolve()
+
+    if INSTALLED_COMMAND.is_symlink() and INSTALLED_COMMAND.resolve() == expected:
+        INSTALLED_COMMAND.unlink()
+        return {"installed": False}
+
+    if INSTALLED_COMMAND.exists() or INSTALLED_COMMAND.is_symlink():
+        raise RuntimeError("The installed jnbot command is not managed by this project.")
+
+    return {"installed": False}
 
 
 async def async_main(
@@ -362,6 +411,14 @@ def main() -> None:
             output(
                 daemon_status()
             )
+            return
+
+        if command == "invite-link":
+            output(invite_link())
+            return
+
+        if command == "manager-uninstall":
+            output(uninstall_manager())
             return
 
         if command == "config-status":

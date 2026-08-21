@@ -20,8 +20,10 @@ def test_public_commands_stay_small():
         "app/bot/commands.py"
     ).read_text(encoding="utf-8")
 
-    assert 'name="config"' in text
-    assert 'name="status"' in text
+    assert 'name="setup"' in text
+    assert 'name="edit"' in text
+    assert 'name="config"' not in text
+    assert 'name="status"' not in text
 
     assert text.count(
         "@app_commands.command"

@@ -11,6 +11,9 @@
 - Consolidated the project guides into the README.
 - Added complete channel or webhook photo destinations in `jnbot`.
 - Moved article photo requests under **Posts → Add-ons**.
+- Organized the CLI as Bot Settings, Features, Activity, and Bot Manager.
+- Added safe invite-link copy, minimum permissions, self-install, and uninstall.
+- Replaced Discord `/config` and `/status` with friendly `/setup` and `/edit`.
 - Moved private Discord setup into `jnbot` and removed separate token scripts.
 - Updated rendered posts when article-page metadata changes.
 - Kept photo requests and withdrawals intact when feed content changes.

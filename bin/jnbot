@@ -16,6 +16,14 @@ done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+INSTALL_DIR="$HOME/.local/bin"
+INSTALLED="$INSTALL_DIR/jnbot"
+
+if [ ! -e "$INSTALLED" ] && [ ! -L "$INSTALLED" ]; then
+    mkdir -p "$INSTALL_DIR"
+    ln -s "$ROOT/bin/jnbot" "$INSTALLED"
+fi
+
 PYTHON="$ROOT/.venv/bin/python"
 UI="$ROOT/ui/src/index.mjs"
 
