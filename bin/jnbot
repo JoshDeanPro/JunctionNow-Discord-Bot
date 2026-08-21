@@ -1,18 +1,42 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
 
-if [ ! -x "$ROOT/.venv/bin/python" ]; then
-    echo "Python environment is missing."
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+
+    case "$SOURCE" in
+        /*) ;;
+        *) SOURCE="$DIR/$SOURCE" ;;
+    esac
+done
+
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+PYTHON="$ROOT/.venv/bin/python"
+UI="$ROOT/ui/src/index.mjs"
+
+if [ ! -x "$PYTHON" ]; then
+    echo "Python environment is missing:"
+    echo "  $PYTHON"
+    exit 1
+fi
+
+if [ ! -f "$UI" ]; then
+    echo "JunctionNow operator UI is missing:"
+    echo "  $UI"
     exit 1
 fi
 
 if [ ! -d "$ROOT/ui/node_modules" ]; then
-    echo "JunctionNow operator UI is not installed."
+    echo "JunctionNow operator UI dependencies are missing."
+    echo
     echo "Run:"
     echo "  npm --prefix \"$ROOT/ui\" install"
     exit 1
 fi
 
-exec node "$ROOT/ui/src/index.mjs"
+exec node "$UI"
