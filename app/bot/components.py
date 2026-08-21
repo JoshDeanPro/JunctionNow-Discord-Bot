@@ -88,15 +88,13 @@ def config_text(
             "",
             f"**Status:** {status}",
             f"**Posting channel:** {channel_text}",
-            f"**First-post mentions:** {roles}",
+            f"**Mention roles:** {roles}",
             "",
             (
-                "Choose an existing channel below, "
-                "or use **Make Channel**."
+                "Choose a posting channel. JunctionNow starts automatically."
             ),
             (
-                "Optional roles are mentioned on the next post only. "
-                "Article text itself can never create pings."
+                "Mention roles are optional and ping on the next post only."
             ),
         ]
     )
@@ -149,13 +147,21 @@ class RolePicker(
         self,
         panel: ConfigView,
     ) -> None:
+        current_roles = [
+            role
+            for role_id in panel.record.get("mention_role_ids", [])
+            if str(role_id).isdigit()
+            if (role := panel.guild.get_role(int(role_id))) is not None
+        ]
+
         super().__init__(
             custom_id="jn:config:roles",
             placeholder=(
-                "Choose roles to mention"
+                "Optional: choose mention roles"
             ),
-            min_values=1,
+            min_values=0,
             max_values=10,
+            default_values=current_roles,
         )
 
         self.panel = panel
@@ -193,30 +199,6 @@ class MakeChannelButton(
         interaction: discord.Interaction,
     ) -> None:
         await self.panel.make_channel(
-            interaction
-        )
-
-
-class NoMentionsButton(
-    discord.ui.Button
-):
-    def __init__(
-        self,
-        panel: ConfigView,
-    ) -> None:
-        super().__init__(
-            custom_id="jn:config:no-mentions",
-            label="No Mentions",
-            style=discord.ButtonStyle.secondary,
-        )
-
-        self.panel = panel
-
-    async def callback(
-        self,
-        interaction: discord.Interaction,
-    ) -> None:
-        await self.panel.clear_roles(
             interaction
         )
 
@@ -292,7 +274,6 @@ class ConfigView(
                     not can_make_channel
                 ),
             ),
-            NoMentionsButton(self),
             ToggleButton(
                 self,
                 bool(
@@ -589,20 +570,6 @@ class ConfigView(
         await self.store.configure_roles(
             self.guild.id,
             selected,
-            interaction.user.id,
-        )
-
-        await self.refresh(
-            interaction
-        )
-
-    async def clear_roles(
-        self,
-        interaction: discord.Interaction,
-    ) -> None:
-        await self.store.configure_roles(
-            self.guild.id,
-            [],
             interaction.user.id,
         )
 

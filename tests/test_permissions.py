@@ -35,5 +35,7 @@ def test_setup_mentions_are_one_time_and_multi_role():
     delivery = Path("app/sync/delivery.py").read_text(encoding="utf-8")
 
     assert "max_values=10" in components
-    assert "mentioned on the next post only" in components
+    assert "min_values=0" in components
+    assert "default_values=current_roles" in components
+    assert "ping on the next post only" in components
     assert 'config.get("mention_pending")' in delivery
