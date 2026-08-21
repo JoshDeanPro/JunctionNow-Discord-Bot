@@ -81,7 +81,11 @@ immediately and take effect after the bot restarts.
 
 Requirements are Python 3.12 and Node 22.
 
-After cloning on macOS or Linux, run:
+Fresh install on macOS or Linux:
+
+    gh repo clone JoshDeanPro/JunctionNow-Discord-Bot ~/JunctionNow-Discord-Bot && ~/JunctionNow-Discord-Bot/bin/jnbot
+
+If the repository is already cloned, run:
 
     ~/JunctionNow-Discord-Bot/bin/jnbot
 
