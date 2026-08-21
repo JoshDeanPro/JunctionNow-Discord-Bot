@@ -1,149 +1,412 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+import discord
 
-from app.config import get_settings
-from app.db.models import SourcePost, Subscription
-from app.db.session import SessionLocal
-from app.sync.delivery import DeliveryService
-from app.sync.feed import JunctionNowFeedClient
-from app.sync.render import content_hash
+from app.storage import JsonStateStore
+from app.sync.delivery import (
+    DeliveryError,
+    DeliveryService,
+)
+from app.sync.feed import (
+    JunctionNowFeedClient,
+)
 from app.sync.types import FeedPost
 
 logger = logging.getLogger(__name__)
 
 
-def utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+def source_hash(
+    rss_hash: str,
+    page_hash: str,
+) -> str:
+    return hashlib.sha256(
+        (
+            rss_hash
+            + "|"
+            + page_hash
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def parse_iso(
+    value: str | None,
+) -> datetime | None:
+    if not value:
+        return None
+
+    try:
+        parsed = (
+            datetime.fromisoformat(
+                value
+            )
+        )
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(
+            tzinfo=UTC
+        )
+
+    return parsed.astimezone(
+        UTC
+    )
 
 
 class SyncEngine:
-    def __init__(self, bot) -> None:
+    def __init__(
+        self,
+        bot,
+        store: JsonStateStore,
+    ) -> None:
         self.bot = bot
-        self.settings = get_settings()
-        self.feed = JunctionNowFeedClient()
-        self.delivery = DeliveryService(bot)
+        self.store = store
+        self.feed = (
+            JunctionNowFeedClient()
+        )
+
+        self.delivery = (
+            DeliveryService(bot)
+        )
+
         self.lock = asyncio.Lock()
 
-        self.last_sync_started_at: datetime | None = None
-        self.last_sync_finished_at: datetime | None = None
-        self.last_sync_error: str | None = None
+        self.last_sync_started_at = None
+        self.last_sync_finished_at = None
+        self.last_sync_error = None
         self.last_post_count = 0
 
-    async def sync_once(self) -> dict[str, int | str]:
+    def should_send_new(
+        self,
+        post: FeedPost,
+        stored_post: dict,
+        guild_config: dict,
+    ) -> bool:
+        configured = parse_iso(
+            guild_config.get(
+                "configured_at"
+            )
+        )
+
+        if configured is None:
+            return False
+
+        if post.published_at:
+            published = (
+                post.published_at
+                .replace(
+                    tzinfo=UTC
+                )
+                if post.published_at
+                .tzinfo is None
+                else post.published_at
+                .astimezone(UTC)
+            )
+
+            return (
+                published > configured
+            )
+
+        first_seen = parse_iso(
+            stored_post.get(
+                "first_seen_at"
+            )
+        )
+
+        if first_seen is None:
+            return False
+
+        return (
+            first_seen > configured
+        )
+
+    async def sync_once(
+        self,
+    ) -> dict:
         if self.lock.locked():
-            return {"status": "already_running", "posts": 0}
+            return {
+                "status": (
+                    "already_running"
+                ),
+                "posts": 0,
+            }
 
         async with self.lock:
-            self.last_sync_started_at = utcnow()
+            self.last_sync_started_at = (
+                datetime.now(
+                    UTC
+                ).isoformat()
+            )
+
             self.last_sync_error = None
 
             try:
                 posts = await self.feed.fetch()
-                posts = posts[: self.settings.max_posts_per_sync]
 
-                self.last_post_count = len(posts)
+                self.last_post_count = len(
+                    posts
+                )
 
-                async with SessionLocal() as session:
-                    subscriptions = (
-                        await session.execute(
-                            select(Subscription).where(
-                                Subscription.enabled.is_(True)
+                for post in reversed(
+                    posts
+                ):
+                    previous = (
+                        await self.store.get_post(
+                            post.post_id
+                        )
+                    )
+
+                    previous_page_hash = (
+                        (
+                            previous
+                            or {}
+                        ).get(
+                            "page_hash",
+                            "",
+                        )
+                        or ""
+                    )
+
+                    effective_page_hash = (
+                        post.page_hash
+                        if post.page_hash
+                        is not None
+                        else previous_page_hash
+                    )
+
+                    current_source_hash = (
+                        source_hash(
+                            post.rss_hash,
+                            effective_page_hash,
+                        )
+                    )
+
+                    stored = {
+                        "post_id": (
+                            post.post_id
+                        ),
+                        "title": post.title,
+                        "body": post.body,
+                        "url": post.url,
+                        "image_url": (
+                            post.image_url
+                        ),
+                        "published_at": (
+                            post.published_at
+                            .replace(
+                                tzinfo=UTC
+                            )
+                            .isoformat()
+                            if post.published_at
+                            else None
+                        ),
+                        "rss_hash": (
+                            post.rss_hash
+                        ),
+                        "page_hash": (
+                            effective_page_hash
+                        ),
+                        "source_hash": (
+                            current_source_hash
+                        ),
+                    }
+
+                    upsert = (
+                        await self.store.upsert_post(
+                            stored
+                        )
+                    )
+
+                    stored_record = (
+                        upsert["record"]
+                    )
+
+                    state = (
+                        await self.store.snapshot()
+                    )
+
+                    guilds = state.get(
+                        "guilds",
+                        {},
+                    )
+
+                    for (
+                        guild_id,
+                        config,
+                    ) in guilds.items():
+                        if not (
+                            config.get(
+                                "enabled"
+                            )
+                            and config.get(
+                                "channel_id"
+                            )
+                        ):
+                            continue
+
+                        guild = self.bot.get_guild(
+                            int(guild_id)
+                        )
+
+                        if guild is None:
+                            continue
+
+                        delivery = (
+                            await self.store
+                            .get_delivery(
+                                guild_id,
+                                post.post_id,
                             )
                         )
-                    ).scalars().all()
 
-                    for post in posts:
-                        db_post = await self.upsert_post(
-                            session,
-                            post,
-                        )
+                        try:
+                            if delivery is None:
+                                if not (
+                                    self.should_send_new(
+                                        post,
+                                        stored_record,
+                                        config,
+                                    )
+                                ):
+                                    continue
 
-                        for subscription in subscriptions:
-                            await self.delivery.deliver_with_retry(
-                                session,
-                                subscription,
-                                db_post,
-                                post,
+                                result = (
+                                    await self.delivery
+                                    .send_new(
+                                        guild,
+                                        config,
+                                        post,
+                                        current_source_hash,
+                                    )
+                                )
+
+                                await self.store.save_delivery(
+                                    guild_id,
+                                    post.post_id,
+                                    result,
+                                    event_type=(
+                                        "message_sent"
+                                    ),
+                                )
+
+                                continue
+
+                            delivery_hash = (
+                                delivery.get(
+                                    "source_hash"
+                                )
                             )
 
-                        await session.commit()
+                            missing_message = (
+                                not delivery.get(
+                                    "message_id"
+                                )
+                            )
 
-                self.last_sync_finished_at = utcnow()
+                            changed = (
+                                delivery_hash
+                                != current_source_hash
+                            )
 
-                logger.info(
-                    "Sync complete: %s posts, %s subscriptions",
-                    len(posts),
-                    len(subscriptions),
+                            if not (
+                                missing_message
+                                or changed
+                            ):
+                                continue
+
+                            result, event_type = (
+                                await self.delivery
+                                .update_existing(
+                                    guild,
+                                    config,
+                                    delivery,
+                                    post,
+                                    current_source_hash,
+                                )
+                            )
+
+                            await self.store.save_delivery(
+                                guild_id,
+                                post.post_id,
+                                result,
+                                event_type=event_type,
+                            )
+
+                        except (
+                            DeliveryError,
+                            discord.HTTPException,
+                        ) as exc:
+                            logger.warning(
+                                "Delivery failed "
+                                "guild=%s post=%s: %s",
+                                guild_id,
+                                post.post_id,
+                                exc,
+                            )
+
+                            await self.store.record_event(
+                                "delivery_error",
+                                guild_id=guild_id,
+                                metadata={
+                                    "post_id": (
+                                        post.post_id
+                                    ),
+                                    "error": (
+                                        type(
+                                            exc
+                                        ).__name__
+                                    ),
+                                },
+                            )
+
+                self.last_sync_finished_at = (
+                    datetime.now(
+                        UTC
+                    ).isoformat()
+                )
+
+                await self.store.record_event(
+                    "sync_complete",
+                    metadata={
+                        "posts": len(
+                            posts
+                        ),
+                    },
                 )
 
                 return {
                     "status": "ok",
                     "posts": len(posts),
-                    "subscriptions": len(subscriptions),
                 }
 
             except Exception as exc:
-                self.last_sync_error = str(exc)
-                self.last_sync_finished_at = utcnow()
-                logger.exception("JunctionNow synchronization failed")
+                self.last_sync_error = (
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                )
+
+                self.last_sync_finished_at = (
+                    datetime.now(
+                        UTC
+                    ).isoformat()
+                )
+
+                await self.store.record_event(
+                    "sync_error",
+                    metadata={
+                        "error": (
+                            type(exc).__name__
+                        ),
+                    },
+                )
+
+                logger.exception(
+                    "JunctionNow sync failed"
+                )
+
                 raise
-
-    async def upsert_post(
-        self,
-        session,
-        post: FeedPost,
-    ) -> SourcePost:
-        db_post = await session.get(
-            SourcePost,
-            post.post_id,
-        )
-
-        new_hash = content_hash(post)
-
-        if db_post is None:
-            db_post = SourcePost(
-                post_id=post.post_id,
-                revision=max(post.revision, 1),
-                content_hash=new_hash,
-                status=post.status,
-                title=post.title,
-                body=post.body,
-                url=post.url,
-                image_url=post.image_url,
-                published_at=post.published_at,
-                source_updated_at=post.updated_at,
-                last_seen_at=utcnow(),
-            )
-
-            session.add(db_post)
-            await session.flush()
-            return db_post
-
-        changed = db_post.content_hash != new_hash
-
-        if changed:
-            db_post.revision = max(
-                db_post.revision + 1,
-                post.revision,
-            )
-        elif post.revision > db_post.revision:
-            db_post.revision = post.revision
-
-        db_post.content_hash = new_hash
-        db_post.status = post.status
-        db_post.title = post.title
-        db_post.body = post.body
-        db_post.url = post.url
-        db_post.image_url = post.image_url
-        db_post.published_at = post.published_at
-        db_post.source_updated_at = post.updated_at
-        db_post.last_seen_at = utcnow()
-
-        await session.flush()
-
-        return db_post

@@ -4,26 +4,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  postgres:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: junctionnow
-      POSTGRES_USER: junctionnow
-      POSTGRES_PASSWORD: change-this-before-production
     volumes:
-      - junctionnow_postgres:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U junctionnow -d junctionnow
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  junctionnow_postgres:
+      - ./data:/app/data
+      - ./logs:/app/logs

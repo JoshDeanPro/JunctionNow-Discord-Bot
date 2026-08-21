@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import secrets
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import (
+    FastAPI,
+    Header,
+    HTTPException,
+)
 
 from app.config import get_settings
 
 
-def create_api(bot) -> FastAPI:
+def create_api(
+    bot,
+) -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="JunctionNow Discord Bot",
+        title=(
+            "JunctionNow Discord Bot"
+        ),
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -20,12 +28,17 @@ def create_api(bot) -> FastAPI:
     def authorize(
         supplied: str | None,
     ) -> None:
-        configured = settings.internal_api_secret
+        configured = (
+            settings.internal_api_secret
+        )
 
         if not configured:
             raise HTTPException(
                 status_code=503,
-                detail="Internal API secret is not configured",
+                detail=(
+                    "Internal API secret "
+                    "is not configured"
+                ),
             )
 
         if not secrets.compare_digest(
@@ -41,8 +54,12 @@ def create_api(bot) -> FastAPI:
     async def health():
         return {
             "status": "ok",
-            "discord_ready": bot.is_ready(),
-            "guilds": len(bot.guilds),
+            "discord_ready": (
+                bot.is_ready()
+            ),
+            "guilds": len(
+                bot.guilds
+            ),
         }
 
     @app.get("/ready")
@@ -50,39 +67,92 @@ def create_api(bot) -> FastAPI:
         if not bot.is_ready():
             raise HTTPException(
                 status_code=503,
-                detail="Discord bot is not ready",
+                detail=(
+                    "Discord bot is not ready"
+                ),
             )
 
         return {
-            "status": "ready",
-            "discord_ready": True,
+            "status": "ready"
         }
 
-    @app.post("/internal/sync")
+    @app.post(
+        "/internal/sync"
+    )
     async def sync(
-        x_junctionnow_secret: str | None = Header(
+        x_junctionnow_secret: (
+            str | None
+        ) = Header(
             default=None
         ),
     ):
-        authorize(x_junctionnow_secret)
-        return await bot.sync_engine.sync_once()
+        authorize(
+            x_junctionnow_secret
+        )
 
-    @app.get("/internal/status")
-    async def internal_status(
-        x_junctionnow_secret: str | None = Header(
+        return await (
+            bot.sync_engine
+            .sync_once()
+        )
+
+    @app.get(
+        "/internal/status"
+    )
+    async def status(
+        x_junctionnow_secret: (
+            str | None
+        ) = Header(
             default=None
         ),
     ):
-        authorize(x_junctionnow_secret)
+        authorize(
+            x_junctionnow_secret
+        )
 
-        engine = bot.sync_engine
+        state = await (
+            bot.store.snapshot()
+        )
 
         return {
-            "guilds": len(bot.guilds),
-            "last_sync_started_at": engine.last_sync_started_at,
-            "last_sync_finished_at": engine.last_sync_finished_at,
-            "last_sync_error": engine.last_sync_error,
-            "last_post_count": engine.last_post_count,
+            "guilds": len(
+                state.get(
+                    "guilds",
+                    {},
+                )
+            ),
+            "posts": len(
+                state.get(
+                    "posts",
+                    {},
+                )
+            ),
+            "delivery_guilds": len(
+                state.get(
+                    "deliveries",
+                    {},
+                )
+            ),
+            "analytics": (
+                state.get(
+                    "analytics",
+                    {},
+                ).get(
+                    "counters",
+                    {},
+                )
+            ),
+            "last_sync_started_at": (
+                bot.sync_engine
+                .last_sync_started_at
+            ),
+            "last_sync_finished_at": (
+                bot.sync_engine
+                .last_sync_finished_at
+            ),
+            "last_sync_error": (
+                bot.sync_engine
+                .last_sync_error
+            ),
         }
 
     return app

@@ -1,4 +1,8 @@
-from app.sync.feed import clean_html, json_posts
+from app.sync.feed import (
+    canonicalize_url,
+    clean_description,
+    clean_html,
+)
 
 
 def test_clean_html():
@@ -7,23 +11,27 @@ def test_clean_html():
     ) == "Hello world"
 
 
-def test_json_feed_parser():
-    posts = json_posts(
-        {
-            "posts": [
-                {
-                    "id": "123",
-                    "revision": 4,
-                    "title": "Hello",
-                    "body": "<p>World</p>",
-                    "url": "https://junctionnow.com/post/123",
-                    "status": "published",
-                }
-            ]
-        }
+def test_description_four_sentences():
+    source = (
+        "One. Two. Three. Four. Five. "
+        "The post Example appeared first on JunctionNow."
     )
 
-    assert len(posts) == 1
-    assert posts[0].post_id == "123"
-    assert posts[0].revision == 4
-    assert posts[0].body == "World"
+    assert clean_description(source) == (
+        "One. Two. Three. Four..."
+    )
+
+
+def test_tracking_query_removed():
+    url = (
+        "https://junctionnow.com/story/"
+        "?utm_source=discord"
+        "&foo=bar"
+        "&fbclid=123"
+        "#section"
+    )
+
+    assert canonicalize_url(url) == (
+        "https://junctionnow.com/story/"
+        "?foo=bar"
+    )

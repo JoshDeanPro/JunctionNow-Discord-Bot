@@ -1,32 +1,44 @@
-from app.sync.render import content_hash
+from app.sync.render import (
+    build_embed,
+    render_hash,
+)
 from app.sync.types import FeedPost
 
 
-def make_post(
-    body: str = "Hello",
-) -> FeedPost:
+def make_post():
     return FeedPost(
-        post_id="jn-test-1",
+        post_id="test",
         title="Test",
-        body=body,
-        url="https://junctionnow.com/test",
+        body="Example...",
+        url=(
+            "https://junctionnow.com/test/"
+        ),
         image_url=None,
-        status="published",
-        revision=1,
         published_at=None,
-        updated_at=None,
+        rss_hash="rss",
+        page_hash="page",
     )
 
 
-def test_hash_is_stable():
-    assert content_hash(make_post()) == content_hash(
-        make_post()
+def test_update_changes_render_hash():
+    post = make_post()
+
+    assert render_hash(
+        post,
+        updated=False,
+    ) != render_hash(
+        post,
+        updated=True,
     )
 
 
-def test_hash_changes_when_visible_content_changes():
-    assert content_hash(
-        make_post("A")
-    ) != content_hash(
-        make_post("B")
+def test_updated_footer():
+    embed = build_embed(
+        make_post(),
+        updated=True,
+    )
+
+    assert (
+        embed.footer.text
+        == "JunctionNow • Updated"
     )

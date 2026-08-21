@@ -16,10 +16,6 @@ data/*
 logs/*
 !logs/.gitkeep
 
-*.db
-*.sqlite
-*.sqlite3
-
 .DS_Store
 .idea/
 .vscode/

@@ -11,7 +11,6 @@ class FeedPost:
     body: str
     url: str
     image_url: str | None
-    status: str
-    revision: int
     published_at: datetime | None
-    updated_at: datetime | None
+    rss_hash: str
+    page_hash: str | None

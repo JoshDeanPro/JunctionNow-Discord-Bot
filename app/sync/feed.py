@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import Any
+from urllib.parse import (
+    parse_qsl,
+    urlencode,
+    urlsplit,
+    urlunsplit,
+)
 
 import feedparser
 import httpx
@@ -16,282 +23,563 @@ from app.sync.types import FeedPost
 
 logger = logging.getLogger(__name__)
 
+TRACKING_KEYS = {
+    "fbclid",
+    "gclid",
+}
 
-def clean_html(value: str | None) -> str:
+
+def hash_payload(
+    payload: dict,
+) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    return hashlib.sha256(
+        encoded
+    ).hexdigest()
+
+
+def canonicalize_url(
+    url: str,
+) -> str:
+    url = (url or "").strip()
+
+    if not url:
+        return ""
+
+    parts = urlsplit(url)
+
+    query = []
+
+    for key, value in parse_qsl(
+        parts.query,
+        keep_blank_values=True,
+    ):
+        lowered = key.lower()
+
+        if lowered.startswith(
+            "utm_"
+        ):
+            continue
+
+        if lowered in TRACKING_KEYS:
+            continue
+
+        query.append(
+            (key, value)
+        )
+
+    return urlunsplit(
+        (
+            parts.scheme.lower(),
+            parts.netloc.lower(),
+            parts.path or "/",
+            urlencode(
+                query,
+                doseq=True,
+            ),
+            "",
+        )
+    )
+
+
+def clean_html(
+    value: str | None,
+) -> str:
     if not value:
         return ""
 
     tree = HTMLParser(value)
 
-    for node in tree.css("script, style"):
+    for node in tree.css(
+        "script, style"
+    ):
         node.decompose()
 
-    text = tree.text(separator=" ", strip=True)
+    text = tree.text(
+        separator=" ",
+        strip=True,
+    )
 
-    return " ".join(text.split())
+    return " ".join(
+        text.split()
+    )
 
 
-def parse_datetime(value: Any) -> datetime | None:
+def clean_description(
+    value: str | None,
+) -> str:
+    description = clean_html(
+        value
+    )
+
+    if not description:
+        return ""
+
+    if "the post" in (
+        description.lower()
+    ):
+        description = re.sub(
+            r"\s+the post.*$",
+            "",
+            description,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        description = re.sub(
+            r"[.…\[\]]*\s*$",
+            "",
+            description,
+        ).strip()
+
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(
+            r"(?<=[.!?])\s+",
+            description,
+        )
+        if sentence.strip()
+    ]
+
+    if len(sentences) > 4:
+        description = " ".join(
+            sentences[:4]
+        )
+    elif sentences:
+        description = " ".join(
+            sentences
+        )
+
+    if description:
+        description = (
+            description.rstrip(".")
+            + "..."
+        )
+
+    if len(description) > 2000:
+        description = (
+            description[:1997].rstrip()
+            + "..."
+        )
+
+    return description
+
+
+def parse_datetime(
+    value,
+) -> datetime | None:
     if not value:
         return None
 
-    if isinstance(value, datetime):
-        dt = value
-    elif isinstance(value, str):
-        candidate = value.strip()
+    if isinstance(
+        value,
+        datetime,
+    ):
+        parsed = value
+
+    else:
+        candidate = str(
+            value
+        ).strip()
 
         try:
-            dt = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+            parsed = (
+                datetime.fromisoformat(
+                    candidate.replace(
+                        "Z",
+                        "+00:00",
+                    )
+                )
+            )
         except ValueError:
             try:
-                dt = parsedate_to_datetime(candidate)
-            except (TypeError, ValueError):
+                parsed = (
+                    parsedate_to_datetime(
+                        candidate
+                    )
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
                 return None
-    else:
-        return None
 
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(UTC).replace(tzinfo=None)
+    if parsed.tzinfo is not None:
+        parsed = (
+            parsed.astimezone(
+                UTC
+            )
+            .replace(
+                tzinfo=None
+            )
+        )
 
-    return dt
+    return parsed
 
 
-def stable_id(*parts: str) -> str:
-    material = "|".join(
-        part.strip()
-        for part in parts
-        if part and part.strip()
+def metadata_content(
+    tree: HTMLParser,
+    selector: str,
+) -> str:
+    node = tree.css_first(
+        selector
     )
 
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:40]
+    if not node:
+        return ""
+
+    return (
+        node.attributes.get(
+            "content",
+            "",
+        )
+        .strip()
+    )
 
 
-def json_posts(payload: Any) -> list[FeedPost]:
-    if isinstance(payload, list):
-        records = payload
-    elif isinstance(payload, dict):
-        records = (
-            payload.get("posts")
-            or payload.get("items")
-            or payload.get("results")
-            or payload.get("data")
-            or []
+def article_body(
+    tree: HTMLParser,
+) -> str:
+    selectors = (
+        '[itemprop="articleBody"]',
+        "article .entry-content",
+        ".entry-content",
+        ".post-content",
+        ".article-content",
+    )
+
+    for selector in selectors:
+        node = tree.css_first(
+            selector
         )
 
-        if isinstance(records, dict):
-            records = records.get("posts") or records.get("items") or []
-    else:
-        records = []
-
-    posts: list[FeedPost] = []
-
-    for item in records:
-        if not isinstance(item, dict):
+        if not node:
             continue
 
-        title = str(
-            item.get("title")
-            or item.get("name")
-            or ""
-        ).strip()
-
-        body = clean_html(
-            str(
-                item.get("body")
-                or item.get("content")
-                or item.get("description")
-                or item.get("summary")
-                or ""
-            )
+        text = node.text(
+            separator=" ",
+            strip=True,
         )
 
-        url = str(
-            item.get("url")
-            or item.get("link")
-            or item.get("permalink")
-            or ""
-        ).strip()
-
-        raw_id = (
-            item.get("id")
-            or item.get("post_id")
-            or item.get("guid")
-            or item.get("uuid")
+        cleaned = " ".join(
+            text.split()
         )
 
-        post_id = (
-            str(raw_id).strip()
-            if raw_id
-            else stable_id(url, title)
-        )
+        if cleaned:
+            return cleaned[:50000]
 
-        if not post_id:
-            continue
-
-        try:
-            revision = int(
-                item.get("revision")
-                or item.get("version")
-                or 1
-            )
-        except (TypeError, ValueError):
-            revision = 1
-
-        image_url = (
-            item.get("image")
-            or item.get("image_url")
-            or item.get("thumbnail")
-            or item.get("featured_image")
-        )
-
-        posts.append(
-            FeedPost(
-                post_id=post_id,
-                title=title,
-                body=body,
-                url=url,
-                image_url=str(image_url).strip() if image_url else None,
-                status=str(
-                    item.get("status")
-                    or "published"
-                ).strip().lower(),
-                revision=max(revision, 1),
-                published_at=parse_datetime(
-                    item.get("published_at")
-                    or item.get("published")
-                    or item.get("date")
-                ),
-                updated_at=parse_datetime(
-                    item.get("updated_at")
-                    or item.get("updated")
-                    or item.get("modified_at")
-                ),
-            )
-        )
-
-    return posts
-
-
-def rss_posts(raw: bytes) -> list[FeedPost]:
-    parsed = feedparser.parse(raw)
-    posts: list[FeedPost] = []
-
-    for entry in parsed.entries:
-        title = str(entry.get("title") or "").strip()
-        url = str(entry.get("link") or "").strip()
-        guid = str(
-            entry.get("id")
-            or entry.get("guid")
-            or ""
-        ).strip()
-
-        content = entry.get("content") or []
-
-        if content and isinstance(content[0], dict):
-            body_source = content[0].get("value") or ""
-        else:
-            body_source = (
-                entry.get("summary")
-                or entry.get("description")
-                or ""
-            )
-
-        body = clean_html(str(body_source))
-
-        image_url = None
-
-        media_content = entry.get("media_content") or []
-        if media_content and isinstance(media_content[0], dict):
-            image_url = media_content[0].get("url")
-
-        media_thumbnail = entry.get("media_thumbnail") or []
-        if (
-            not image_url
-            and media_thumbnail
-            and isinstance(media_thumbnail[0], dict)
-        ):
-            image_url = media_thumbnail[0].get("url")
-
-        if not image_url:
-            for enclosure in entry.get("enclosures") or []:
-                href = enclosure.get("href")
-                content_type = str(enclosure.get("type") or "")
-
-                if href and content_type.startswith("image/"):
-                    image_url = href
-                    break
-
-        posts.append(
-            FeedPost(
-                post_id=guid or stable_id(url, title),
-                title=title,
-                body=body,
-                url=url,
-                image_url=str(image_url) if image_url else None,
-                status="published",
-                revision=1,
-                published_at=parse_datetime(
-                    entry.get("published")
-                    or entry.get("created")
-                ),
-                updated_at=parse_datetime(entry.get("updated")),
-            )
-        )
-
-    return posts
+    return ""
 
 
 class JunctionNowFeedClient:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def fetch(self) -> list[FeedPost]:
-        url = self.settings.junctionnow_feed_url.strip()
+    async def inspect_article(
+        self,
+        client: httpx.AsyncClient,
+        post: FeedPost,
+    ) -> None:
+        if not post.url:
+            return
+
+        try:
+            response = await client.get(
+                post.url,
+                timeout=10,
+            )
+
+            response.raise_for_status()
+
+        except httpx.HTTPError:
+            logger.debug(
+                "Article page fetch failed: %s",
+                post.url,
+                exc_info=True,
+            )
+            return
+
+        tree = HTMLParser(
+            response.text
+        )
+
+        og_title = metadata_content(
+            tree,
+            'meta[property="og:title"]',
+        )
+
+        og_description = (
+            metadata_content(
+                tree,
+                'meta[property="og:description"]',
+            )
+            or metadata_content(
+                tree,
+                'meta[name="description"]',
+            )
+        )
+
+        image_url = (
+            metadata_content(
+                tree,
+                'meta[property="og:image"]',
+            )
+            or metadata_content(
+                tree,
+                'meta[name="twitter:image"]',
+            )
+        )
+
+        body = article_body(
+            tree
+        )
+
+        if image_url:
+            post.image_url = image_url
+
+        post.page_hash = hash_payload(
+            {
+                "og_title": og_title,
+                "og_description": (
+                    og_description
+                ),
+                "image_url": (
+                    image_url
+                ),
+                "article_body": body,
+            }
+        )
+
+    async def fetch(
+        self,
+    ) -> list[FeedPost]:
+        url = (
+            self.settings
+            .junctionnow_feed_url
+            .strip()
+        )
 
         if not url:
-            logger.warning(
-                "JUNCTIONNOW_FEED_URL is not configured; sync skipped."
+            raise RuntimeError(
+                "JUNCTIONNOW_FEED_URL "
+                "is not configured"
             )
-            return []
 
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(
-                self.settings.junctionnow_request_timeout
+                self.settings
+                .junctionnow_request_timeout
             ),
             follow_redirects=True,
             headers={
-                "User-Agent": "JunctionNowDiscordBot/0.1",
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(Macintosh; Intel Mac OS X) "
+                    "AppleWebKit/537.36 "
+                    "JunctionNowDiscordBot/0.2"
+                ),
                 "Accept": (
-                    "application/json, application/rss+xml, "
-                    "application/atom+xml, text/xml, */*"
+                    "application/rss+xml, "
+                    "application/atom+xml, "
+                    "text/xml, */*"
                 ),
             },
         ) as client:
-            response = await client.get(url)
+            response = await client.get(
+                url
+            )
+
             response.raise_for_status()
 
-        content_type = response.headers.get(
-            "content-type",
-            "",
-        ).lower()
+            feed = feedparser.parse(
+                response.content
+            )
 
-        mode = self.settings.source_mode
+            posts: list[
+                FeedPost
+            ] = []
 
-        if mode == "json":
-            return json_posts(response.json())
+            for entry in feed.entries[
+                : self.settings
+                .max_feed_items
+            ]:
+                title = str(
+                    entry.get(
+                        "title",
+                        "No Title",
+                    )
+                ).strip()
 
-        if mode == "rss":
-            return rss_posts(response.content)
+                url = canonicalize_url(
+                    str(
+                        entry.get(
+                            "link",
+                            "",
+                        )
+                    )
+                )
 
-        if "json" in content_type:
-            return json_posts(response.json())
+                raw_id = str(
+                    entry.get("id")
+                    or entry.get(
+                        "guid"
+                    )
+                    or ""
+                ).strip()
 
-        raw = response.content.lstrip()
+                if raw_id.startswith(
+                    ("http://", "https://")
+                ):
+                    post_id = (
+                        canonicalize_url(
+                            raw_id
+                        )
+                    )
+                else:
+                    post_id = (
+                        raw_id
+                        or url
+                        or hashlib.sha256(
+                            (
+                                title
+                                + "|"
+                                + str(
+                                    entry.get(
+                                        "published",
+                                        "",
+                                    )
+                                )
+                            ).encode(
+                                "utf-8"
+                            )
+                        ).hexdigest()
+                    )
 
-        if raw.startswith((b"{", b"[")):
-            try:
-                return json_posts(json.loads(response.text))
-            except json.JSONDecodeError:
-                pass
+                description = (
+                    entry.get(
+                        "description"
+                    )
+                    or entry.get(
+                        "summary"
+                    )
+                    or ""
+                )
 
-        return rss_posts(response.content)
+                body = clean_description(
+                    str(description)
+                )
+
+                image_url = None
+
+                media = (
+                    entry.get(
+                        "media_content"
+                    )
+                    or []
+                )
+
+                if (
+                    media
+                    and isinstance(
+                        media[0],
+                        dict,
+                    )
+                ):
+                    image_url = (
+                        media[0].get(
+                            "url"
+                        )
+                    )
+
+                thumbnails = (
+                    entry.get(
+                        "media_thumbnail"
+                    )
+                    or []
+                )
+
+                if (
+                    not image_url
+                    and thumbnails
+                    and isinstance(
+                        thumbnails[0],
+                        dict,
+                    )
+                ):
+                    image_url = (
+                        thumbnails[0]
+                        .get("url")
+                    )
+
+                published = parse_datetime(
+                    entry.get(
+                        "published"
+                    )
+                    or entry.get(
+                        "created"
+                    )
+                )
+
+                rss_hash = hash_payload(
+                    {
+                        "post_id": post_id,
+                        "title": title,
+                        "body": body,
+                        "url": url,
+                        "image_url": (
+                            image_url
+                            or ""
+                        ),
+                        "published": (
+                            published.isoformat()
+                            if published
+                            else ""
+                        ),
+                    }
+                )
+
+                posts.append(
+                    FeedPost(
+                        post_id=post_id,
+                        title=title,
+                        body=body,
+                        url=url,
+                        image_url=(
+                            str(image_url)
+                            if image_url
+                            else None
+                        ),
+                        published_at=(
+                            published
+                        ),
+                        rss_hash=rss_hash,
+                        page_hash=None,
+                    )
+                )
+
+            semaphore = (
+                asyncio.Semaphore(4)
+            )
+
+            async def inspect(
+                post: FeedPost,
+            ) -> None:
+                async with semaphore:
+                    await self.inspect_article(
+                        client,
+                        post,
+                    )
+
+            await asyncio.gather(
+                *(
+                    inspect(post)
+                    for post in posts
+                )
+            )
+
+            return posts
