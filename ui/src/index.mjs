@@ -670,6 +670,17 @@ function Dashboard({
     []
   );
 
+  useInput(
+    (input, key) => {
+      if (
+        key.escape
+        || key.leftArrow
+      ) {
+        back();
+      }
+    }
+  );
+
   if (error) {
     return h(
       Message,
@@ -723,17 +734,6 @@ function Dashboard({
       data.photo_requests
     ]
   ];
-
-  useInput(
-    (input, key) => {
-      if (
-        key.escape
-        || key.leftArrow
-      ) {
-        back();
-      }
-    }
-  );
 
   return h(
     Box,
