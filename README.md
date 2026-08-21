@@ -32,7 +32,7 @@ Its menus contain:
 - **Overview** for counts and delivery state
 - **Servers** for installed-server controls and delivery state
 - **Features** for Posts and tracked Broadcasts
-- **Manage Bot** for internal configuration, logs, analytics, and invites
+- **Manage Bot** for enable/disable state, internal configuration, logs, analytics, and invites
 - **Storage** for feature usage, destinations, maintenance, retention, and local archives
 - **Settings** for start, stop, updates, and manager uninstall
 

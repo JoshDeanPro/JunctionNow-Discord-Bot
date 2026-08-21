@@ -92,3 +92,6 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "label: 'Clear All'" in text
     assert "Default · JSON" in text
     assert "item.status === 'inactive'" in text
+    assert "label: enabled ? 'Bot Enabled' : 'Bot Disabled'" in text
+    assert "{id: 'start', label: 'Start bot'}" not in text
+    assert "{id: 'stop', label: 'Stop bot'}" not in text

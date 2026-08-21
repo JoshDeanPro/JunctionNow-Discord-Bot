@@ -948,6 +948,18 @@ function ManageBot({
   go,
   back
 }) {
+  const [daemon, setDaemon] = useState(null);
+
+  useEffect(() => {
+    bridge('daemon-status').then(setDaemon);
+  }, []);
+
+  if (!daemon) {
+    return h(Loading);
+  }
+
+  const enabled = daemon.running;
+
   return h(
     Menu,
     {
@@ -955,13 +967,24 @@ function ManageBot({
       subtitle: 'Internal bot management.',
       back,
       items: [
+        {
+          id: 'runtime',
+          label: enabled ? 'Bot Enabled' : 'Bot Disabled',
+          status: enabled ? '●' : '○',
+          statusColor: enabled ? 'green' : MUTED,
+          action: enabled ? 'disable' : 'enable'
+        },
         {id: 'configuration', label: 'Configuration'},
         {id: 'activity', label: 'Logs'},
         {id: 'overview', label: 'Analytics'},
         {id: 'invite-copy', label: 'Copy invite link'},
         {id: 'invite-show', label: 'Invite bot or restore permissions'}
       ],
-      select: item => go({name: item.id})
+      select: item => go(
+        item.id === 'runtime'
+          ? {name: 'bot-action', action: item.action}
+          : {name: item.id}
+      )
     }
   );
 }
@@ -1148,19 +1171,13 @@ function Settings({
     Menu,
     {
       title: 'Settings',
-      subtitle: 'Runtime and Bot Manager settings.',
+      subtitle: 'JunctionNow Discord Bot Manager settings.',
       back,
       items: [
-        {id: 'start', label: 'Start bot'},
-        {id: 'stop', label: 'Stop bot'},
         {id: 'updates', label: 'Updates'},
         {id: 'manager-uninstall', label: 'Uninstall Bot Manager'}
       ],
-      select: item => go(
-        item.id === 'start' || item.id === 'stop'
-          ? {name: 'bot-action', action: item.id}
-          : {name: item.id}
-      )
+      select: item => go({name: item.id})
     }
   );
 }
@@ -2956,21 +2973,21 @@ function App() {
       Confirm,
       {
         title:
-          'Bot control',
+          `${action === 'enable' ? 'Enable' : 'Disable'} Bot`,
         message:
-          `${action} the JunctionNow service?`,
+          `${action === 'enable' ? 'Enable' : 'Disable'} the JunctionNow service?`,
         back,
         confirm:
           async () => {
             try {
               if (
-                action === 'start'
+                action === 'enable'
               ) {
                 await bridge(
                   'daemon-start'
                 );
               } else if (
-                action === 'stop'
+                action === 'disable'
               ) {
                 await bridge(
                   'daemon-stop'
@@ -2978,7 +2995,7 @@ function App() {
               }
 
               done(
-                `${action} requested.`
+                `Bot ${action}d.`
               );
 
             } catch (error) {
