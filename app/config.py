@@ -56,13 +56,30 @@ def _optional_integer(name: str) -> int | None:
     return int(value) if value else None
 
 
+def _integer_list(name: str) -> tuple[int, ...]:
+    raw = os.environ.get(name, "").strip()
+
+    if not raw:
+        return ()
+
+    values = []
+
+    for part in raw.split(","):
+        part = part.strip()
+
+        if part:
+            values.append(int(part))
+
+    return tuple(dict.fromkeys(values))
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
     discord_application_id: int | None
 
-    app_env: str
     log_level: str
+    log_file: str
 
     junctionnow_feed_url: str
     junctionnow_request_timeout: float
@@ -76,7 +93,9 @@ class Settings:
     state_max_events: int
     state_backup_count: int
 
-    log_file: str
+    management_guild_id: int | None
+    management_channel_id: int | None
+    management_operator_ids: tuple[int, ...]
 
 
 @lru_cache
@@ -84,10 +103,21 @@ def get_settings() -> Settings:
     _load_env()
 
     return Settings(
-        discord_token=os.environ.get("DISCORD_TOKEN", "").strip(),
-        discord_application_id=_optional_integer("DISCORD_APPLICATION_ID"),
-        app_env=os.environ.get("APP_ENV", "development").strip(),
-        log_level=os.environ.get("LOG_LEVEL", "INFO").strip(),
+        discord_token=os.environ.get(
+            "DISCORD_TOKEN",
+            "",
+        ).strip(),
+        discord_application_id=_optional_integer(
+            "DISCORD_APPLICATION_ID"
+        ),
+        log_level=os.environ.get(
+            "LOG_LEVEL",
+            "INFO",
+        ).strip(),
+        log_file=os.environ.get(
+            "LOG_FILE",
+            "./logs/junctionnow-bot.log",
+        ).strip(),
         junctionnow_feed_url=os.environ.get(
             "JUNCTIONNOW_FEED_URL",
             "https://junctionnow.com/feed/",
@@ -96,18 +126,41 @@ def get_settings() -> Settings:
             "JUNCTIONNOW_REQUEST_TIMEOUT",
             20.0,
         ),
-        max_feed_items=_integer("MAX_FEED_ITEMS", 10),
-        sync_interval_seconds=_integer("SYNC_INTERVAL_SECONDS", 300),
-        sync_on_startup=_boolean("SYNC_ON_STARTUP", True),
+        max_feed_items=_integer(
+            "MAX_FEED_ITEMS",
+            10,
+        ),
+        sync_interval_seconds=_integer(
+            "SYNC_INTERVAL_SECONDS",
+            300,
+        ),
+        sync_on_startup=_boolean(
+            "SYNC_ON_STARTUP",
+            True,
+        ),
         state_file=os.environ.get(
             "STATE_FILE",
             "./data/state.json",
         ).strip(),
-        state_max_posts=_integer("STATE_MAX_POSTS", 1000),
-        state_max_events=_integer("STATE_MAX_EVENTS", 500),
-        state_backup_count=_integer("STATE_BACKUP_COUNT", 5),
-        log_file=os.environ.get(
-            "LOG_FILE",
-            "./logs/junctionnow-bot.log",
-        ).strip(),
+        state_max_posts=_integer(
+            "STATE_MAX_POSTS",
+            1000,
+        ),
+        state_max_events=_integer(
+            "STATE_MAX_EVENTS",
+            500,
+        ),
+        state_backup_count=_integer(
+            "STATE_BACKUP_COUNT",
+            5,
+        ),
+        management_guild_id=_optional_integer(
+            "MANAGEMENT_GUILD_ID"
+        ),
+        management_channel_id=_optional_integer(
+            "MANAGEMENT_CHANNEL_ID"
+        ),
+        management_operator_ids=_integer_list(
+            "MANAGEMENT_OPERATOR_IDS"
+        ),
     )

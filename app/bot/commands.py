@@ -4,24 +4,16 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from app.bot.components import (
-    ConfigView,
-    StatusView,
-)
+from app.bot.components import ConfigView, StatusView
 
 
-class JunctionCommands(
-    commands.Cog
-):
-    def __init__(
-        self,
-        bot,
-    ) -> None:
+class JunctionCommands(commands.Cog):
+    def __init__(self, bot) -> None:
         self.bot = bot
 
     @app_commands.command(
         name="config",
-        description="Configure JunctionNow for this server",
+        description="Set up JunctionNow for this server",
     )
     @app_commands.allowed_installs(
         guilds=True,
@@ -33,7 +25,10 @@ class JunctionCommands(
         private_channels=False,
     )
     @app_commands.default_permissions(
-        manage_guild=True
+        manage_guild=True,
+    )
+    @app_commands.checks.has_permissions(
+        manage_guild=True,
     )
     async def config(
         self,
@@ -42,48 +37,27 @@ class JunctionCommands(
         guild = interaction.guild
 
         if guild is None:
-            await interaction.response.send_message(
-                "This command can only be used "
-                "in a server.",
-                ephemeral=True,
-            )
             return
 
-        await self.bot.store.track_guild(
-            guild
-        )
+        await self.bot.store.track_guild(guild)
 
-        await self.bot.store.record_event(
-            "command_config",
-            guild_id=guild.id,
-            metadata={
-                "user_id": str(
-                    interaction.user.id
-                ),
-            },
-        )
-
-        record = (
-            await self.bot.store.get_guild(
-                guild.id
-            )
-        )
-
-        view = ConfigView(
-            self.bot,
-            guild,
-            interaction.user.id,
-            record,
+        record = await self.bot.store.get_guild(
+            guild.id
         )
 
         await interaction.response.send_message(
-            view=view,
+            view=ConfigView(
+                self.bot,
+                guild,
+                interaction.user.id,
+                record,
+            ),
             ephemeral=True,
         )
 
     @app_commands.command(
         name="status",
-        description="Show JunctionNow status for this server",
+        description="Show JunctionNow setup for this server",
     )
     @app_commands.allowed_installs(
         guilds=True,
@@ -95,7 +69,10 @@ class JunctionCommands(
         private_channels=False,
     )
     @app_commands.default_permissions(
-        manage_guild=True
+        manage_guild=True,
+    )
+    @app_commands.checks.has_permissions(
+        manage_guild=True,
     )
     async def status(
         self,
@@ -104,44 +81,54 @@ class JunctionCommands(
         guild = interaction.guild
 
         if guild is None:
-            await interaction.response.send_message(
-                "This command can only be used "
-                "in a server.",
-                ephemeral=True,
-            )
             return
-
-        await self.bot.store.record_event(
-            "command_status",
-            guild_id=guild.id,
-            metadata={
-                "user_id": str(
-                    interaction.user.id
-                ),
-            },
-        )
 
         state = await self.bot.store.snapshot()
 
         record = (
-            state
-            .get("guilds", {})
+            state.get("guilds", {})
             .get(str(guild.id))
         )
 
         deliveries = (
-            state
-            .get("deliveries", {})
+            state.get("deliveries", {})
             .get(str(guild.id), {})
         )
 
-        view = StatusView(
-            guild,
-            record,
-            len(deliveries),
-        )
-
         await interaction.response.send_message(
-            view=view,
+            view=StatusView(
+                guild,
+                record,
+                len(deliveries),
+            ),
             ephemeral=True,
         )
+
+    async def cog_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ) -> None:
+        if isinstance(
+            error,
+            app_commands.MissingPermissions,
+        ):
+            message = (
+                "You need Manage Server permission "
+                "to use this command."
+            )
+
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    message,
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+
+            return
+
+        raise error

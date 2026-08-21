@@ -18,13 +18,29 @@ async def main() -> None:
             "DISCORD_TOKEN is not configured in .env"
         )
 
+    if (
+        settings.management_guild_id
+        or settings.management_channel_id
+        or settings.management_operator_ids
+    ):
+        if not (
+            settings.management_guild_id
+            and settings.management_channel_id
+            and len(settings.management_operator_ids) == 2
+        ):
+            raise RuntimeError(
+                "Management configuration is incomplete"
+            )
+
     store = JsonStateStore()
     await store.initialize()
 
     bot = JunctionNowBot(store)
 
     try:
-        await bot.start(settings.discord_token)
+        await bot.start(
+            settings.discord_token
+        )
     finally:
         if not bot.is_closed():
             await bot.close()

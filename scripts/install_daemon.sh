@@ -2,13 +2,12 @@
 set -Eeuo pipefail
 
 if [ "$(uname -s)" != "Linux" ]; then
-    echo "This installer is for Linux/systemd hosts."
+    echo "This installer is for Linux systems that use systemd."
     exit 1
 fi
 
 if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-    echo "Run with sudo:"
-    echo "  sudo ./scripts/install_daemon.sh"
+    echo "Run this script with sudo."
     exit 1
 fi
 
@@ -22,12 +21,12 @@ else
 fi
 
 if [ ! -x "$ROOT/.venv/bin/python" ]; then
-    echo "Missing $ROOT/.venv"
+    echo "The Python environment is missing."
     exit 1
 fi
 
 if [ ! -f "$ROOT/.env" ]; then
-    echo "Missing $ROOT/.env"
+    echo "The private .env file is missing."
     exit 1
 fi
 
@@ -55,5 +54,4 @@ EOF
 systemctl daemon-reload
 systemctl enable --now junctionnow-discord.service
 
-echo
 systemctl --no-pager --full status junctionnow-discord.service || true

@@ -8,44 +8,30 @@ from discord.ext import commands, tasks
 
 from app.bot.commands import JunctionCommands
 from app.config import get_settings
+from app.management import ManagementManager, ManagementView
 from app.storage import JsonStateStore
 from app.sync.reconciler import SyncEngine
 
 logger = logging.getLogger(__name__)
 
 
-class JunctionNowBot(
-    commands.Bot
-):
+class JunctionNowBot(commands.Bot):
     def __init__(
         self,
         store: JsonStateStore,
     ) -> None:
-        self.settings = (
-            get_settings()
-        )
-
+        self.settings = get_settings()
         self.store = store
 
-        intents = (
-            discord.Intents.none()
-        )
-
+        intents = discord.Intents.none()
         intents.guilds = True
         intents.guild_messages = True
 
         super().__init__(
-            command_prefix=(
-                commands.when_mentioned
-            ),
+            command_prefix=commands.when_mentioned,
             intents=intents,
-            application_id=(
-                self.settings
-                .discord_application_id
-            ),
-            allowed_mentions=(
-                discord.AllowedMentions.none()
-            ),
+            application_id=self.settings.discord_application_id,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
         self.sync_engine = SyncEngine(
@@ -53,54 +39,58 @@ class JunctionNowBot(
             self.store,
         )
 
+        self.management = ManagementManager(self)
+
+        self._ready_notification_sent = False
+
         self.background_sync.change_interval(
             seconds=max(
-                15,
-                self.settings
-                .sync_interval_seconds,
+                30,
+                self.settings.sync_interval_seconds,
             )
         )
 
-    async def setup_hook(
-        self,
-    ) -> None:
+    async def setup_hook(self) -> None:
         await self.add_cog(
             JunctionCommands(self)
         )
 
-        commands_synced = (
-            await self.tree.sync()
-        )
+        await self.tree.sync()
 
-        logger.info(
-            "Synced %s global application commands",
-            len(commands_synced),
-        )
+        if self.management.enabled:
+            self.add_view(
+                ManagementView(
+                    self.management
+                )
+            )
 
-        if not (
-            self.background_sync
-            .is_running()
-        ):
+        if not self.background_sync.is_running():
             self.background_sync.start()
 
-    async def on_ready(
-        self,
-    ) -> None:
+    async def on_ready(self) -> None:
         logger.info(
             "Logged in as %s (%s); %s guilds",
             self.user,
-            (
-                self.user.id
-                if self.user
-                else "unknown"
-            ),
+            self.user.id if self.user else "unknown",
             len(self.guilds),
         )
 
         for guild in self.guilds:
-            await self.store.track_guild(
-                guild
-            )
+            await self.store.track_guild(guild)
+
+        if self.management.enabled:
+            await self.management.ensure_panel()
+
+            if not self._ready_notification_sent:
+                self._ready_notification_sent = True
+
+                await self.management.notify(
+                    "JunctionNow online",
+                    (
+                        "The Discord bot is online and the "
+                        "JunctionNow feed service is ready."
+                    ),
+                )
 
     async def on_guild_join(
         self,
@@ -111,6 +101,17 @@ class JunctionNowBot(
             joined=True,
         )
 
+        if guild.id != self.settings.management_guild_id:
+            await self.management.notify(
+                "Server added",
+                (
+                    "JunctionNow was added to "
+                    f"**{guild.name}**."
+                ),
+            )
+
+        await self.management.ensure_panel()
+
     async def on_guild_remove(
         self,
         guild: discord.Guild,
@@ -119,42 +120,67 @@ class JunctionNowBot(
             guild.id
         )
 
+        if guild.id != self.settings.management_guild_id:
+            await self.management.notify(
+                "Server removed",
+                (
+                    "JunctionNow was removed from "
+                    f"**{guild.name}**."
+                ),
+                level="warning",
+            )
+
+        await self.management.ensure_panel()
+
     async def on_raw_message_delete(
         self,
         payload: discord.RawMessageDeleteEvent,
     ) -> None:
+        panel_id = await self.management.panel_message_id()
+
+        if panel_id == payload.message_id:
+            await self.management.save_panel_message_id(0)
+            await self.management.ensure_panel()
+            return
+
         await self.store.mark_message_deleted(
             payload.message_id
         )
 
-    @tasks.loop(
-        seconds=60
-    )
-    async def background_sync(
-        self,
-    ) -> None:
+    @tasks.loop(seconds=300)
+    async def background_sync(self) -> None:
+        if not await self.management.feed_enabled():
+            return
+
         try:
             await self.sync_engine.sync_once()
 
-        except Exception:
+            await self.management.ensure_panel()
+
+        except Exception as exc:
             logger.exception(
-                "Scheduled synchronization failed"
+                "Scheduled JunctionNow sync failed"
             )
 
+            await self.management.notify(
+                "Feed sync failed",
+                (
+                    "The scheduled feed check failed with "
+                    f"{type(exc).__name__}."
+                ),
+                level="error",
+            )
+
+            await self.management.ensure_panel()
+
     @background_sync.before_loop
-    async def before_background_sync(
-        self,
-    ) -> None:
+    async def before_background_sync(self) -> None:
         await self.wait_until_ready()
 
-        if not (
-            self.settings
-            .sync_on_startup
-        ):
+        if not self.settings.sync_on_startup:
             await asyncio.sleep(
                 max(
-                    15,
-                    self.settings
-                    .sync_interval_seconds,
+                    30,
+                    self.settings.sync_interval_seconds,
                 )
             )
