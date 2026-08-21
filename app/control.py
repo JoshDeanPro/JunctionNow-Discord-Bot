@@ -169,6 +169,7 @@ class ControlWorker:
             "withdraw_post": self.withdraw_post,
             "restore_post": self.restore_post,
             "broadcast": self.broadcast,
+            "withdraw_broadcast": self.withdraw_broadcast,
             "delete_server_data": self.delete_server_data,
             "delete_post_data": self.delete_post_data,
         }
@@ -496,6 +497,8 @@ class ControlWorker:
             description=text,
             title="JunctionNow",
         )
+        broadcast_id = uuid.uuid4().hex[:12]
+        deliveries = []
 
         for guild_id, config in (
             state.get(
@@ -529,14 +532,75 @@ class ControlWorker:
                 continue
 
             try:
-                await channel.send(
+                message = await channel.send(
                     embed=embed,
                     allowed_mentions=(
                         discord.AllowedMentions.none()
                     ),
                 )
+                deliveries.append(
+                    {
+                        "guild_id": guild_id,
+                        "channel_id": str(channel.id),
+                        "message_id": str(message.id),
+                    }
+                )
             except discord.HTTPException:
                 continue
+
+        def save(data):
+            broadcasts = data.setdefault("broadcasts", {})
+            broadcasts[broadcast_id] = {
+                "id": broadcast_id,
+                "message": text,
+                "sent_at": now(),
+                "withdrawn": False,
+                "deliveries": deliveries,
+            }
+
+            if len(broadcasts) > 100:
+                oldest = sorted(
+                    broadcasts.values(),
+                    key=lambda item: item.get("sent_at", ""),
+                )[:-100]
+
+                for item in oldest:
+                    broadcasts.pop(item["id"], None)
+
+        await self.bot.store.mutate(save)
+
+    async def withdraw_broadcast(self, payload: dict) -> None:
+        broadcast_id = str(payload["broadcast_id"])
+        state = await self.bot.store.snapshot()
+        broadcast = state.get("broadcasts", {}).get(broadcast_id)
+
+        if not broadcast:
+            raise ValueError("Broadcast was not found.")
+
+        if broadcast.get("withdrawn"):
+            return
+
+        for delivery in broadcast.get("deliveries", []):
+            guild = self.bot.get_guild(int(delivery["guild_id"]))
+            channel = guild.get_channel(int(delivery["channel_id"])) if guild else None
+
+            if not isinstance(channel, discord.TextChannel):
+                continue
+
+            try:
+                message = await channel.fetch_message(int(delivery["message_id"]))
+                await message.delete()
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                continue
+
+        def mark(data):
+            record = data.setdefault("broadcasts", {}).get(broadcast_id)
+
+            if record:
+                record["withdrawn"] = True
+                record["withdrawn_at"] = now()
+
+        await self.bot.store.mutate(mark)
 
     async def delete_server_data(
         self,

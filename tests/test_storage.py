@@ -106,3 +106,21 @@ async def test_feed_refresh_preserves_operator_post_state(
     assert result["record"]["title"] == "Changed"
     assert result["record"]["withdrawn"] is True
     assert result["record"]["photo_requested"] is True
+
+
+@pytest.mark.asyncio
+async def test_mentions_are_pending_for_one_delivery(tmp_path: Path):
+    store = JsonStateStore()
+    store.path = tmp_path / "state.json"
+    store.backup_dir = tmp_path / "backups"
+    await store.initialize()
+
+    await store.configure_roles(123, [10, 20], 99)
+    configured = await store.get_guild(123)
+
+    assert configured["mention_role_ids"] == ["10", "20"]
+    assert configured["mention_pending"] is True
+
+    await store.consume_mentions(123)
+
+    assert (await store.get_guild(123))["mention_pending"] is False

@@ -88,14 +88,14 @@ def config_text(
             "",
             f"**Status:** {status}",
             f"**Posting channel:** {channel_text}",
-            f"**Mention roles:** {roles}",
+            f"**First-post mentions:** {roles}",
             "",
             (
                 "Choose an existing channel below, "
                 "or use **Make Channel**."
             ),
             (
-                "Role mentions are optional. "
+                "Optional roles are mentioned on the next post only. "
                 "Article text itself can never create pings."
             ),
         ]
@@ -155,7 +155,7 @@ class RolePicker(
                 "Choose roles to mention"
             ),
             min_values=1,
-            max_values=3,
+            max_values=10,
         )
 
         self.panel = panel

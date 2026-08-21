@@ -20,7 +20,8 @@ Server managers use only:
 
 Both commands require **Manage Server** permission. `/setup` guides first-time
 setup. After that, `/edit` changes the channel or mention roles and can stop or
-resume posts.
+resume posts. Optional roles are mentioned only on the first new post after
+they are selected; several roles may be selected at once.
 
 ## jnbot
 
@@ -30,13 +31,15 @@ Its menus contain:
 
 - **Overview** for counts and delivery state
 - **Servers** for installed-server controls and delivery state
-- **Features** for Posts, Photos, and Broadcast
+- **Features** for Posts and tracked Broadcasts
 - **Bot** for internal credentials, channels, logs, analytics, and invites
 - **Storage** for active JSON state and activity records
 - **Settings** for schedule, start, stop, updates, and manager uninstall
 
 Posts contains its own controls and Add-ons. Request Photos and its destination
-live only under **Features → Posts → Add-ons**.
+live only under **Features → Posts → Add-ons**. Request Photos stays unavailable
+until the private destination is configured. Broadcast messages retain their
+Discord message IDs so an operator can withdraw them later.
 
 Esc is the only menu key that exits the console. Ctrl-C also works. Menu movement
 wraps at the top and bottom.

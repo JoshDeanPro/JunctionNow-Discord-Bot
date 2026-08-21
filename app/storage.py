@@ -633,6 +633,7 @@ class JsonStateStore:
                 str(role_id)
                 for role_id in role_ids
             ]
+            record["mention_pending"] = bool(role_ids)
 
             record["configured_by"] = str(
                 user_id
@@ -656,6 +657,17 @@ class JsonStateStore:
             return record
 
         return await self.mutate(change)
+
+    async def consume_mentions(self, guild_id: int | str) -> None:
+        key = str(guild_id)
+
+        def change(state: dict[str, Any]) -> None:
+            record = state.setdefault("guilds", {}).get(key)
+
+            if record:
+                record["mention_pending"] = False
+
+        await self.mutate(change)
 
     async def set_enabled(
         self,

@@ -192,14 +192,9 @@ class DeliveryService:
             channel_id,
         )
 
-        content, allowed = (
-            self.mention_payload(
-                guild,
-                config.get(
-                    "mention_role_ids",
-                    [],
-                ),
-            )
+        content, allowed = self.mention_payload(
+            guild,
+            config.get("mention_role_ids", []) if config.get("mention_pending") else [],
         )
 
         message = await channel.send(
@@ -214,6 +209,9 @@ class DeliveryService:
                 photo_requested,
             ),
         )
+
+        if content:
+            await self.bot.store.consume_mentions(guild.id)
 
         return {
             "channel_id": str(

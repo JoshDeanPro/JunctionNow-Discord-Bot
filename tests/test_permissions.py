@@ -28,3 +28,12 @@ def test_public_commands_stay_small():
     assert text.count(
         "@app_commands.command"
     ) == 2
+
+
+def test_setup_mentions_are_one_time_and_multi_role():
+    components = Path("app/bot/components.py").read_text(encoding="utf-8")
+    delivery = Path("app/sync/delivery.py").read_text(encoding="utf-8")
+
+    assert "max_values=10" in components
+    assert "mentioned on the next post only" in components
+    assert 'config.get("mention_pending")' in delivery

@@ -381,7 +381,7 @@ function Menu({
         key.return
         || key.rightArrow
       ) {
-        if (items[index]) {
+        if (items[index] && !items[index].disabled) {
           select(
             items[index]
           );
@@ -475,7 +475,9 @@ function Menu({
               {
                 bold: selected,
                 color:
-                  selected
+                  item.disabled
+                    ? DIM
+                    : selected
                     ? BLUE
                     : undefined
               },
@@ -1019,7 +1021,6 @@ function Features({
       back,
       items: [
         {id: 'posts', label: 'Posts'},
-        {id: 'photos', label: 'Photos'},
         {id: 'broadcast', label: 'Broadcast'}
       ],
       select: item => go({name: item.id})
@@ -1618,11 +1619,16 @@ function PostsAddons({
       items: [
         {
           id: 'request-photos',
-          label: 'Request Photos'
+          label:
+            data.photo_destination_configured
+              ? 'Request Photos'
+              : 'Request Photos · configure destination first',
+          disabled: !data.photo_destination_configured
         },
         {
           id: 'stop-photos',
-          label: 'Stop Requesting Photos'
+          label: 'Stop Requesting Photos',
+          disabled: !data.photo_destination_configured
         },
         {
           id: 'photo-destination',
@@ -1715,16 +1721,15 @@ function PhotoPosts({
   );
 }
 
-function Photos({
+function Broadcasts({
+  go,
   back
 }) {
-  const [data, setData] =
-    useState(null);
+  const [data, setData] = useState(null);
 
   useEffect(
     () => {
-      bridge('photos')
-        .then(setData);
+      bridge('broadcasts').then(setData);
     },
     []
   );
@@ -1736,30 +1741,28 @@ function Photos({
   return h(
     Menu,
     {
-      title: 'Photos',
-      subtitle:
-        'Recent photo submissions.',
+      title: 'Broadcast',
+      subtitle: 'Send or withdraw JunctionNow messages.',
       back,
-      items:
-        data.items.length
-          ? data.items.map(
-              (item, index) => ({
-                id:
-                  `${index}-${item.at}`,
-                label:
-                  `${item.metadata?.file_count || 0} photo(s) · `
-                  + `${item.metadata?.post_id || 'post'} · `
-                  + `${item.metadata?.user_id || 'user'} · `
-                  + friendlyDate(item.at)
-              })
-            )
-          : [
-              {
-                id: 'none',
-                label: 'No photo submissions'
-              }
-            ],
-      select: () => {}
+      items: [
+        {id: 'send', label: 'Send Broadcast'},
+        ...data.items.map(
+          item => ({
+            id: item.id,
+            label:
+              `${item.withdrawn ? 'Withdrawn · ' : ''}`
+              + `${item.message.slice(0, 60)} · ${friendlyDate(item.sent_at)}`,
+            disabled: Boolean(item.withdrawn),
+            broadcast: item
+          })
+        )
+      ],
+      select:
+        item => go(
+          item.id === 'send'
+            ? {name: 'broadcast-compose'}
+            : {name: 'broadcast-withdraw', broadcast: item.broadcast}
+        )
     }
   );
 }
@@ -2486,18 +2489,6 @@ function App() {
 
   if (
     screen.name
-    === 'photos'
-  ) {
-    return h(
-      Photos,
-      {
-        back
-      }
-    );
-  }
-
-  if (
-    screen.name
     === 'activity'
   ) {
     return h(
@@ -2511,6 +2502,13 @@ function App() {
   if (
     screen.name
     === 'broadcast'
+  ) {
+    return h(Broadcasts, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'broadcast-compose'
   ) {
     return h(
       LineInput,
@@ -2526,6 +2524,32 @@ function App() {
               'broadcast-confirm',
             value
           })
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'broadcast-withdraw'
+  ) {
+    return h(
+      Confirm,
+      {
+        title: 'Withdraw Broadcast',
+        message:
+          `Delete this broadcast from ${screen.broadcast.deliveries.length} server(s)?`,
+        back,
+        confirm:
+          async () => {
+            await bridge(
+              'queue',
+              {
+                action: 'withdraw_broadcast',
+                payload: {broadcast_id: screen.broadcast.id}
+              }
+            );
+            done('Broadcast withdrawal queued.');
+          }
       }
     );
   }

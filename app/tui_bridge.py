@@ -316,30 +316,6 @@ async def async_main(
             "feed_enabled": state.get("system", {}).get("feed_enabled", True),
         }
 
-    if command == "photos":
-        events = (
-            state.get(
-                "analytics",
-                {},
-            ).get(
-                "events",
-                []
-            )
-        )
-
-        items = [
-            item
-            for item in events
-            if item.get("type")
-            == "photo_submission"
-        ]
-
-        items.reverse()
-
-        return {
-            "items": items[:100]
-        }
-
     if command == "activity":
         items = (
             state.get(
@@ -356,6 +332,11 @@ async def async_main(
         return {
             "items": items
         }
+
+    if command == "broadcasts":
+        items = list(state.get("broadcasts", {}).values())
+        items.sort(key=lambda item: item.get("sent_at", ""), reverse=True)
+        return {"items": items[:100]}
 
     if command == "queue":
         action = str(

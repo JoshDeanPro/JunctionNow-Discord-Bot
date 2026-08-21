@@ -82,3 +82,6 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "space select   enter submit   esc back" in text
     assert "label: 'Overview'" in text
     assert "Detected timezone:" in text
+    assert "Request Photos · configure destination first" in text
+    assert "{id: 'photos', label: 'Photos'}" not in text
+    assert "Withdraw Broadcast" in text
