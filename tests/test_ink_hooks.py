@@ -20,31 +20,22 @@ def dashboard_source() -> str:
     return text[start:end]
 
 
-def test_dashboard_input_hook_is_unconditional():
+def test_dashboard_loads_before_rendering_analytics():
     text = dashboard_source()
 
-    hook = text.index(
-        "useInput("
-    )
-
-    error_return = text.index(
-        "if (error)"
-    )
-
-    loading_return = text.index(
-        "if (!data)"
-    )
-
-    assert hook < error_return
-    assert hook < loading_return
+    assert "bridge('overview')" in text
+    assert "label: 'Reach'" in text
+    assert "label: 'Interactions'" in text
+    assert "label: 'Storage'" in text
+    assert "label: 'Runs'" in text
 
 
-def test_dashboard_has_one_input_hook():
+def test_dashboard_uses_shared_menu_input():
     text = dashboard_source()
 
     assert text.count(
         "useInput("
-    ) == 1
+    ) == 0
 
 
 def test_operator_dates_are_friendly():
@@ -61,7 +52,10 @@ def test_menu_wraps_and_only_escape_exits():
     end = text.index("function MultiSelect", start)
     menu = text[start:end]
 
-    assert menu.count("% items.length") == 2
+    assert "move(value, -1)" in menu
+    assert "move(value, 1)" in menu
+    assert "% items.length" in menu
+    assert "if (item.spacer)" in menu
     assert "if (key.escape)" in menu
     assert "if (key.leftArrow && back)" in menu
     assert menu.count("exit();") == 1
@@ -114,5 +108,10 @@ def test_cli_uses_distinct_page_modes_and_single_line_menu_rows():
     assert "feature-settings" not in text
     assert "id: 'posts-settings'" in text
     assert "function postTitle" in text
+    assert "label: 'Start/Stop'" in text
+    assert "label: 'Post Updates'" in text
+    assert "const choices = [2, 5, 15, 30" in text
+    assert "label: 'Settings'" in text
+    assert "label: 'Manually Enter Channel ID'" in text
     assert "'Awaiting server setup'" in text
     assert "state: server.channel_id || 'None selected'" in text

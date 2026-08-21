@@ -51,8 +51,18 @@ async def test_manual_post_update_runs_full_sync():
 async def test_schedule_change_updates_running_loop():
     background_sync = type("Loop", (), {})()
     background_sync.change_interval = MagicMock()
-    bot = type("Bot", (), {"background_sync": background_sync})()
+    bot = type(
+        "Bot",
+        (),
+        {
+            "background_sync": background_sync,
+            "post_interval_seconds": 1800,
+            "post_update_interval_seconds": 1800,
+        },
+    )()
 
-    await ControlWorker(bot).sync_interval({"seconds": 3600})
+    await ControlWorker(bot).sync_interval({"seconds": 3600, "schedule": "posts"})
 
-    background_sync.change_interval.assert_called_once_with(seconds=3600)
+    assert bot.post_interval_seconds == 3600
+    assert bot.post_update_interval_seconds == 1800
+    background_sync.change_interval.assert_called_once_with(seconds=1800)

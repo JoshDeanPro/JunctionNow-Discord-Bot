@@ -67,12 +67,12 @@ def test_schedule_is_bounded_and_reports_local_timezone(tmp_path, monkeypatch):
     assert status["timezone"]
 
 
-def test_old_short_schedule_reports_effective_minimum(tmp_path, monkeypatch):
+def test_legacy_schedule_is_used_for_posts(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text("SYNC_INTERVAL_SECONDS=300\n", encoding="utf-8")
     monkeypatch.setattr(local_config, "ENV_FILE", env_file)
 
-    assert local_config.configured()["sync_interval_minutes"] == 30
+    assert local_config.configured()["post_interval_minutes"] == 5
 
 
 def test_retention_preferences_are_bounded_and_saved(tmp_path, monkeypatch):
@@ -101,3 +101,14 @@ def test_bot_enabled_state_is_private_and_explicit(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="enabled or disabled"):
         local_config.save_value("BOT_ENABLED", "2")
+
+
+def test_post_and_update_schedules_are_separate(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")
+
+    local_config.save_value("POST_INTERVAL_SECONDS", "120")
+    local_config.save_value("POST_UPDATE_INTERVAL_SECONDS", "900")
+
+    status = local_config.configured()
+    assert status["post_interval_minutes"] == 2
+    assert status["post_update_interval_minutes"] == 15

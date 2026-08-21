@@ -186,15 +186,28 @@ class ControlWorker:
         await handler(payload)
 
     async def sync_now(self, payload: dict) -> None:
-        await self.bot.sync_engine.sync_once()
+        await self.bot.sync_engine.sync_once(inspect_articles=True)
 
     async def sync_interval(self, payload: dict) -> None:
         seconds = int(payload["seconds"])
+        schedule = str(payload.get("schedule", "posts"))
 
-        if not 1800 <= seconds <= 86400:
-            raise ValueError("Post checks must be 30 minutes to 24 hours apart.")
+        if not 120 <= seconds <= 86400:
+            raise ValueError("Post checks must be 2 minutes to 24 hours apart.")
 
-        self.bot.background_sync.change_interval(seconds=seconds)
+        if schedule == "posts":
+            self.bot.post_interval_seconds = seconds
+        elif schedule == "updates":
+            self.bot.post_update_interval_seconds = seconds
+        else:
+            raise ValueError("Unknown post schedule.")
+
+        self.bot.background_sync.change_interval(
+            seconds=min(
+                self.bot.post_interval_seconds,
+                self.bot.post_update_interval_seconds,
+            )
+        )
 
     async def retention(self, payload: dict) -> None:
         values = {

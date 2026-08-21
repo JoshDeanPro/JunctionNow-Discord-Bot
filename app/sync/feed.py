@@ -114,7 +114,7 @@ def clean_html(
 def clean_title(value: str | None) -> str:
     title = clean_html(value)
     return re.sub(
-        r"\s*[-|–—]\s*JunctionNow\.com\s*$",
+        r"\s*[-|\u2013\u2014]\s*JunctionNow\.com\s*$",
         "",
         title,
         flags=re.IGNORECASE,
@@ -377,6 +377,8 @@ class JunctionNowFeedClient:
 
     async def fetch(
         self,
+        *,
+        inspect_articles: bool = True,
     ) -> list[FeedPost]:
         url = (
             self.settings
@@ -592,11 +594,9 @@ class JunctionNowFeedClient:
                         post,
                     )
 
-            await asyncio.gather(
-                *(
-                    inspect(post)
-                    for post in posts
+            if inspect_articles:
+                await asyncio.gather(
+                    *(inspect(post) for post in posts)
                 )
-            )
 
             return posts

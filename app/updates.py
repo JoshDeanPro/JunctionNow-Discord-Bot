@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_ORIGIN = "https://github.com/JoshDeanPro/JunctionNow-Discord-Bot.git"
 
 
 def run(*args: str, check: bool = True) -> str:
@@ -35,11 +36,10 @@ def verify_repository() -> None:
 
     origin = run("git", "remote", "get-url", "origin")
 
-    if not re.match(
-        r"^(?:https://github\.com/|git@github\.com:)[^/]+/[^/]+(?:\.git)?$",
-        origin,
-    ):
-        raise RuntimeError("The origin remote is not hosted on GitHub.")
+    normalized = re.sub(r"^git@github\.com:", "https://github.com/", origin)
+
+    if normalized.removesuffix(".git") != EXPECTED_ORIGIN.removesuffix(".git"):
+        raise RuntimeError("The origin remote is not the JunctionNow repository.")
 
 
 def update_status(*, fetch: bool = False) -> dict:
@@ -81,6 +81,8 @@ def install_update() -> dict:
     run("git", "merge", "--ff-only", "origin/main")
 
     checks = (
+        (str(ROOT / ".venv/bin/python"), "-m", "pip", "install", "-e", ".[dev]"),
+        ("npm", "--prefix", "ui", "ci"),
         (str(ROOT / ".venv/bin/python"), "scripts/check_repo_safety.py"),
         (str(ROOT / ".venv/bin/ruff"), "check", "app", "tests", "scripts"),
         (str(ROOT / ".venv/bin/python"), "-m", "pytest", "-q"),

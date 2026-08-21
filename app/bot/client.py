@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 import discord
 from discord.ext import commands, tasks
@@ -15,6 +16,22 @@ from app.storage import JsonStateStore
 from app.sync.reconciler import SyncEngine
 
 logger = logging.getLogger(__name__)
+
+
+def check_due(value: str | None, interval: int, *, current: datetime | None = None) -> bool:
+    if not value:
+        return True
+
+    try:
+        checked = datetime.fromisoformat(value)
+    except ValueError:
+        return True
+
+    if checked.tzinfo is None:
+        checked = checked.replace(tzinfo=UTC)
+
+    current = current or datetime.now(UTC)
+    return (current - checked.astimezone(UTC)).total_seconds() >= interval
 
 
 class JunctionNowBot(commands.Bot):
@@ -49,11 +66,11 @@ class JunctionNowBot(commands.Bot):
             OperatorChannels(self)
         )
 
+        self.post_interval_seconds = self.settings.post_interval_seconds
+        self.post_update_interval_seconds = self.settings.post_update_interval_seconds
+
         self.background_sync.change_interval(
-            seconds=max(
-                1800,
-                self.settings.sync_interval_seconds,
-            )
+            seconds=min(self.post_interval_seconds, self.post_update_interval_seconds)
         )
 
     async def setup_hook(self) -> None:
@@ -150,8 +167,22 @@ class JunctionNowBot(commands.Bot):
         ):
             return
 
+        system = state.get("system", {})
+        current = datetime.now(UTC)
+        posts_due = check_due(
+            system.get("last_post_check_at"), self.post_interval_seconds, current=current
+        )
+        updates_due = check_due(
+            system.get("last_post_update_check_at"),
+            self.post_update_interval_seconds,
+            current=current,
+        )
+
+        if not posts_due and not updates_due:
+            return
+
         try:
-            await self.sync_engine.sync_once()
+            await self.sync_engine.sync_once(inspect_articles=updates_due)
 
         except Exception:
             logger.exception(
@@ -166,8 +197,5 @@ class JunctionNowBot(commands.Bot):
 
         if not self.settings.sync_on_startup:
             await asyncio.sleep(
-                max(
-                    1800,
-                    self.settings.sync_interval_seconds,
-                )
+                min(self.post_interval_seconds, self.post_update_interval_seconds)
             )

@@ -86,6 +86,8 @@ class Settings:
     max_feed_items: int
 
     sync_interval_seconds: int
+    post_interval_seconds: int
+    post_update_interval_seconds: int
     sync_on_startup: bool
 
     state_file: str
@@ -132,6 +134,14 @@ def get_settings() -> Settings:
         ),
         sync_interval_seconds=_integer(
             "SYNC_INTERVAL_SECONDS",
+            1800,
+        ),
+        post_interval_seconds=_integer(
+            "POST_INTERVAL_SECONDS",
+            _integer("SYNC_INTERVAL_SECONDS", 1800),
+        ),
+        post_update_interval_seconds=_integer(
+            "POST_UPDATE_INTERVAL_SECONDS",
             1800,
         ),
         sync_on_startup=_boolean(

@@ -12,6 +12,7 @@ FORBIDDEN_TRACKED = {
     ".env.local",
     "credentials.json",
     "data/state.json",
+    "private/storage.json",
 }
 
 SKIP_SUFFIXES = {

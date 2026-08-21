@@ -414,6 +414,20 @@ class JsonStateStore:
         joined: bool = False,
     ) -> dict[str, Any]:
         guild_id = str(guild.id)
+        available_channels = []
+
+        for channel in getattr(guild, "text_channels", []):
+            member = getattr(guild, "me", None)
+
+            if member is not None:
+                permissions = channel.permissions_for(member)
+
+                if not (permissions.view_channel and permissions.send_messages):
+                    continue
+
+            available_channels.append(
+                {"id": str(channel.id), "name": str(channel.name)}
+            )
 
         def change(
             state: dict[str, Any],
@@ -472,6 +486,7 @@ class JsonStateStore:
                     ),
                     "last_seen_at": now,
                     "removed_at": None,
+                    "available_channels": available_channels,
                 }
             )
 

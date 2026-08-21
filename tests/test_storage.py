@@ -124,3 +124,35 @@ async def test_mentions_are_pending_for_one_delivery(tmp_path: Path):
     await store.consume_mentions(123)
 
     assert (await store.get_guild(123))["mention_pending"] is False
+
+
+@pytest.mark.asyncio
+async def test_guild_tracks_sendable_channels_from_gateway_cache(tmp_path: Path):
+    store = JsonStateStore()
+    store.path = tmp_path / "state.json"
+    store.backup_dir = tmp_path / "backups"
+    await store.initialize()
+
+    permissions = type("Permissions", (), {"view_channel": True, "send_messages": True})()
+    channel = type(
+        "Channel",
+        (),
+        {"id": 456, "name": "news", "permissions_for": lambda self, member: permissions},
+    )()
+    guild = type(
+        "Guild",
+        (),
+        {
+            "id": 123,
+            "name": "Test Server",
+            "member_count": 10,
+            "me": object(),
+            "text_channels": [channel],
+        },
+    )()
+
+    await store.track_guild(guild)
+
+    assert (await store.get_guild(123))["available_channels"] == [
+        {"id": "456", "name": "news"}
+    ]

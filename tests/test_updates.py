@@ -8,7 +8,7 @@ from app import updates
 def test_update_status_accepts_only_fast_forward(monkeypatch):
     values = {
         ("git", "branch", "--show-current"): "main",
-        ("git", "remote", "get-url", "origin"): "https://github.com/org/project.git",
+        ("git", "remote", "get-url", "origin"): updates.EXPECTED_ORIGIN,
         ("git", "rev-parse", "HEAD"): "a" * 40,
         ("git", "rev-parse", "origin/main"): "b" * 40,
     }
@@ -54,5 +54,17 @@ def test_update_rejects_non_github_origin(monkeypatch):
 
     monkeypatch.setattr(updates, "run", fake_run)
 
-    with pytest.raises(RuntimeError, match="not hosted on GitHub"):
+    with pytest.raises(RuntimeError, match="not the JunctionNow repository"):
+        updates.verify_repository()
+
+
+def test_update_rejects_different_github_repository(monkeypatch):
+    def fake_run(*args, **kwargs):
+        if args == ("git", "branch", "--show-current"):
+            return "main"
+        return "https://github.com/example/different.git"
+
+    monkeypatch.setattr(updates, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="not the JunctionNow repository"):
         updates.verify_repository()

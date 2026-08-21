@@ -251,6 +251,12 @@ class SubmitPhotosButton(discord.ui.Button):
             )
             return
 
+        await self.bot.store.record_event(
+            "photo_button_click",
+            guild_id=guild_id,
+            metadata={"post_id": post_id},
+        )
+
         await interaction.response.send_modal(
             PhotoSubmitModal(
                 self.bot,

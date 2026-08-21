@@ -80,6 +80,7 @@ class SyncEngine:
         self.last_sync_finished_at = None
         self.last_sync_error = None
         self.last_post_count = 0
+        self.last_article_check_at = None
 
     def should_send_new(
         self,
@@ -127,6 +128,8 @@ class SyncEngine:
 
     async def sync_once(
         self,
+        *,
+        inspect_articles: bool = True,
     ) -> dict:
         if self.lock.locked():
             return {
@@ -146,7 +149,21 @@ class SyncEngine:
             self.last_sync_error = None
 
             try:
-                posts = await self.feed.fetch()
+                posts = await self.feed.fetch(inspect_articles=inspect_articles)
+
+                checked_at = datetime.now(UTC)
+
+                def record_checks(state):
+                    system = state.setdefault("system", {})
+                    system["last_post_check_at"] = checked_at.isoformat()
+
+                    if inspect_articles:
+                        system["last_post_update_check_at"] = checked_at.isoformat()
+
+                await self.store.mutate(record_checks)
+
+                if inspect_articles:
+                    self.last_article_check_at = checked_at
 
                 self.last_post_count = len(
                     posts
@@ -160,6 +177,9 @@ class SyncEngine:
                             post.post_id
                         )
                     )
+
+                    if previous is not None and not inspect_articles:
+                        continue
 
                     previous_page_hash = (
                         (

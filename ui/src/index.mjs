@@ -63,9 +63,21 @@ function friendlyDate(value) {
   );
 }
 
+function friendlyBytes(value) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function postTitle(value) {
   return (value || 'Untitled post')
-    .replace(/\s*[-|–—]\s*JunctionNow\.com\s*$/i, '')
+    .replace(/\s*[-|\u2013\u2014]\s*JunctionNow\.com\s*$/i, '')
     .trim();
 }
 
@@ -345,8 +357,19 @@ function Menu({
   const {exit} = useApp();
   const labelWidth = Math.min(
     34,
-    Math.max(0, ...items.map(item => item.label.length))
+    Math.max(0, ...items.filter(item => !item.spacer).map(item => item.label.length))
   );
+  const move = (current, direction) => {
+    for (let step = 1; step <= items.length; step += 1) {
+      const next = (current + direction * step + items.length) % items.length;
+
+      if (!items[next]?.spacer) {
+        return next;
+      }
+    }
+
+    return current;
+  };
 
   useEffect(
     () => {
@@ -375,9 +398,7 @@ function Menu({
       ) {
         if (items.length) {
           setIndex(
-            value => (
-              value - 1 + items.length
-            ) % items.length
+            value => move(value, -1)
           );
         }
 
@@ -390,9 +411,7 @@ function Menu({
       ) {
         if (items.length) {
           setIndex(
-            value => (
-              value + 1
-            ) % items.length
+            value => move(value, 1)
           );
         }
 
@@ -403,7 +422,7 @@ function Menu({
         key.return
         || key.rightArrow
       ) {
-        if (items[index] && !items[index].disabled) {
+        if (items[index] && !items[index].disabled && !items[index].spacer) {
           select(
             items[index]
           );
@@ -442,6 +461,10 @@ function Menu({
       },
       ...items.map(
         (item, itemIndex) => {
+          if (item.spacer) {
+            return h(Box, {key: item.id, height: 1});
+          }
+
           const selected =
             itemIndex === index;
 
@@ -456,7 +479,7 @@ function Menu({
               Text,
               {
                 bold: selected,
-                color: item.disabled ? DIM : selected ? BLUE : undefined
+                color: item.disabled ? DIM : selected ? BLUE : item.color
               },
               item.state || item.description
                 ? item.label.padEnd(labelWidth + 2)
@@ -714,17 +737,20 @@ function Loading() {
 function Root({
   go
 }) {
-  const [daemon, setDaemon] = useState(null);
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-    bridge('daemon-status').then(setDaemon);
+    Promise.all([bridge('daemon-status'), bridge('config-status')]).then(
+      ([daemon, config]) => setData({daemon, config})
+    );
   }, []);
 
-  if (!daemon) {
+  if (!data) {
     return h(Loading);
   }
 
-  const botState = runtimeState(daemon);
+  const botState = runtimeState(data.daemon);
+  const setupNeeded = !data.config.token_configured || !data.config.application_id;
 
   return h(
     Menu,
@@ -732,8 +758,11 @@ function Root({
       root: true,
       title: 'Discord Bot Manager',
       subtitle:
-        'Local control for JunctionNow.',
+        setupNeeded ? 'Complete local setup to start the bot.' : 'Local control for JunctionNow.',
       items: [
+        ...(setupNeeded
+          ? [{id: 'setup', label: 'Initial Setup', state: 'Required', stateColor: 'yellow'}, {id: 'setup-space', spacer: true}]
+          : []),
         {
           id: 'overview',
           label: 'Overview'
@@ -782,6 +811,7 @@ function runtimeState(daemon) {
 }
 
 function Dashboard({
+  go,
   back
 }) {
   const [data, setData] =
@@ -797,17 +827,6 @@ function Dashboard({
         .catch(setError);
     },
     []
-  );
-
-  useInput(
-    (input, key) => {
-      if (
-        key.escape
-        || key.leftArrow
-      ) {
-        back();
-      }
-    }
   );
 
   if (error) {
@@ -827,80 +846,79 @@ function Dashboard({
 
   const botState = runtimeState(data.daemon);
 
-  const rows = [
-    ['Bot', botState.label],
-    [
-      'Feed',
-      data.feed_enabled
-        ? 'Running'
-        : 'Paused'
-    ],
-    [
-      'Servers',
-      data.servers
-    ],
-    [
-      'Configured',
-      data.configured
-    ],
-    [
-      'Banned',
-      data.banned
-    ],
-    [
-      'Posts',
-      data.posts
-    ],
-    [
-      'Deliveries',
-      data.deliveries
-    ],
-    [
-      'Photo requests',
-      data.photo_requests
-    ]
+  const items = [
+    {
+      id: 'health',
+      label: 'Health',
+      state: botState.label,
+      stateColor: botState.color,
+      rows: [
+        {id: 'bot', label: 'Bot', value: botState.label, valueColor: botState.color},
+        {id: 'posts', label: 'Automatic Posts', value: data.feed_enabled ? 'Running' : 'Stopped'},
+        {id: 'delivery-failures', label: 'Delivery Failures', value: String(data.delivery_failures)},
+        {id: 'sync-failures', label: 'Sync Failures', value: String(data.sync_failures)}
+      ]
+    },
+    {
+      id: 'reach',
+      label: 'Reach',
+      state: `${data.members} members`,
+      rows: [
+        {id: 'servers', label: 'Known Servers', value: String(data.servers)},
+        {id: 'configured', label: 'Configured Servers', value: String(data.configured)},
+        {id: 'banned', label: 'Banned Servers', value: String(data.banned)},
+        {id: 'members', label: 'Members Served', value: String(data.members)}
+      ]
+    },
+    {
+      id: 'posts',
+      label: 'Posts',
+      state: `${data.posts} tracked`,
+      rows: [
+        {id: 'tracked', label: 'Tracked Posts', value: String(data.posts)},
+        {id: 'deliveries', label: 'Discord Deliveries', value: String(data.deliveries)},
+        {id: 'requests', label: 'Photo Requests', value: String(data.photo_requests)}
+      ]
+    },
+    {
+      id: 'interactions',
+      label: 'Interactions',
+      state: `${data.interactions} clicks`,
+      rows: [
+        {id: 'clicks', label: 'Submit Photos Clicks', value: String(data.interactions)},
+        {id: 'submissions', label: 'Photo Submissions', value: String(data.photo_submissions)},
+        {id: 'events', label: 'Saved Activity', value: String(data.activity_events)}
+      ]
+    },
+    {
+      id: 'storage',
+      label: 'Storage',
+      state: friendlyBytes(data.storage_bytes),
+      rows: [
+        {id: 'backend', label: 'Active Backend', value: 'JSON'},
+        {id: 'size', label: 'Active State Size', value: friendlyBytes(data.storage_bytes)}
+      ]
+    },
+    {
+      id: 'runs',
+      label: 'Runs',
+      state: data.next_post_check_at ? friendlyDate(data.next_post_check_at) : 'Due now',
+      rows: [
+        {id: 'last-post', label: 'Last Posts Check', value: data.last_post_check_at ? friendlyDate(data.last_post_check_at) : 'Not run'},
+        {id: 'next-post', label: 'Next Posts Check', value: data.next_post_check_at ? friendlyDate(data.next_post_check_at) : 'Due now'},
+        {id: 'last-update', label: 'Last Post Updates Check', value: data.last_post_update_check_at ? friendlyDate(data.last_post_update_check_at) : 'Not run'},
+        {id: 'next-update', label: 'Next Post Updates Check', value: data.next_post_update_check_at ? friendlyDate(data.next_post_update_check_at) : 'Due now'}
+      ]
+    }
   ];
 
-  return h(
-    Page,
-    {
-      title: 'Overview',
-      subtitle: 'Current bot health and activity.',
-      footer: h(Footer)
-    },
-    h(
-      Box,
-      {
-        flexDirection: 'column'
-      },
-      ...rows.map(
-        ([label, value]) =>
-          h(
-            Box,
-            {
-              key: label
-            },
-            h(
-              Text,
-              {
-                color: MUTED
-              },
-              `${label.padEnd(18)}`
-            ),
-            h(
-              Text,
-              {
-                color:
-                  label === 'Bot'
-                    ? botState.color
-                    : undefined
-              },
-              String(value)
-            )
-          )
-      )
-    )
-  );
+  return h(Menu, {
+    title: 'Overview',
+    subtitle: 'Analytics and current bot health.',
+    items,
+    back,
+    select: item => go({name: 'overview-detail', title: item.label, rows: item.rows})
+  });
 }
 
 function ManageBot({
@@ -1172,37 +1190,139 @@ function StorageSettings({go, back}) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    bridge('storage-status').then(setData);
+    bridge('storage-destinations').then(setData);
   }, []);
 
   if (!data) {
     return h(Loading);
   }
 
-  const backend = (id, label) => {
-    const item = data.backends[id];
-    const active = item.status === 'active';
-    const problem = item.status === 'inactive';
-
-    return {
-      id,
-      label,
-      state: item.label,
-      stateColor: active ? 'green' : problem ? 'red' : MUTED,
-      disabled: !active
-    };
-  };
-
   return h(Menu, {
     title: 'Storage Destinations',
     subtitle: 'Places where bot data can be stored.',
     back,
     items: [
-      backend('json', 'Default · JSON'),
-      backend('mysql', 'MySQL'),
-      backend('postgresql', 'PostgreSQL')
+      {id: 'json', label: 'Default · JSON', state: 'Active', stateColor: 'green'},
+      ...data.items.map(item => ({
+        id: item.id,
+        label: item.name,
+        state: item.status === 'inactive' ? 'Inactive' : 'Active',
+        stateColor: item.status === 'inactive' ? 'red' : 'green',
+        destination: item
+      })),
+      {id: 'destination-space', spacer: true},
+      {id: 'add-mysql', label: 'Add MySQL'},
+      {id: 'add-postgresql', label: 'Add PostgreSQL'}
     ],
-    select: item => go(item.id === 'json' ? {name: 'storage-info'} : {name: item.id})
+    select: item => {
+      if (item.id === 'json') {
+        go({name: 'storage-info'});
+      } else if (item.id.startsWith('add-')) {
+        go({
+          name: 'storage-destination-input',
+          step: 0,
+          draft: {kind: item.id.replace('add-', ''), tls: true}
+        });
+      } else {
+        go({name: 'storage-destination', destination: item.destination});
+      }
+    }
+  });
+}
+
+function StorageDestination({screen, go, back}) {
+  const item = screen.destination;
+
+  return h(Menu, {
+    title: item.name,
+    subtitle: item.kind === 'mysql' ? 'MySQL mirror' : 'PostgreSQL mirror',
+    back,
+    items: [
+      {id: 'sync', label: 'Sync Now'},
+      {id: 'features', label: 'Features', state: item.features.join(', '), disabled: true},
+      {id: 'remove-space', spacer: true},
+      {id: 'remove', label: 'Remove Destination', color: 'red'}
+    ],
+    select: itemChoice => {
+      if (itemChoice.id === 'sync') {
+        bridge('storage-destination-sync', {id: item.id})
+          .then(() => go({name: 'message', title: item.name, message: 'Storage sync completed.'}))
+          .catch(error => go({name: 'message', title: item.name, message: error.message}));
+      } else if (itemChoice.id === 'remove') {
+        go({name: 'storage-destination-remove', destination: item});
+      }
+    }
+  });
+}
+
+const DATABASE_FIELDS = [
+  {name: 'name', title: 'Destination Name', help: 'Use a short name for this connection.'},
+  {name: 'host', title: 'Database Host', help: 'Enter the MySQL or PostgreSQL host.'},
+  {name: 'port', title: 'Database Port', help: 'Enter the database port.'},
+  {name: 'database', title: 'Database Name', help: 'Enter the database name.'},
+  {name: 'username', title: 'Database Username', help: 'Enter the database username.'},
+  {name: 'password', title: 'Database Password', help: 'This stays in private local configuration.', secret: true}
+];
+
+function StorageDestinationInput({screen, go, back}) {
+  const field = DATABASE_FIELDS[screen.step];
+  const initial = field.name === 'port'
+    ? screen.draft.kind === 'mysql' ? '3306' : '5432'
+    : '';
+
+  return h(LineInput, {
+    title: field.title,
+    help: field.help,
+    initial,
+    secret: Boolean(field.secret),
+    back,
+    submit: value => {
+      const draft = {...screen.draft, [field.name]: value};
+
+      if (screen.step + 1 < DATABASE_FIELDS.length) {
+        go({name: 'storage-destination-input', step: screen.step + 1, draft});
+      } else {
+        go({name: 'storage-destination-tls', draft});
+      }
+    }
+  });
+}
+
+function StorageDestinationTls({screen, go, back}) {
+  return h(Menu, {
+    title: 'Connection Security',
+    subtitle: 'Require TLS unless this is a trusted local database.',
+    back,
+    items: [
+      {id: 'required', label: 'Require TLS', state: 'Recommended', stateColor: 'green'},
+      {id: 'off', label: 'TLS Off'}
+    ],
+    select: item => go({
+      name: 'storage-destination-features',
+      draft: {...screen.draft, tls: item.id === 'required'}
+    })
+  });
+}
+
+function StorageDestinationFeatures({screen, go, back}) {
+  const features = ['servers', 'posts', 'deliveries', 'photos', 'broadcasts', 'activity'];
+
+  return h(MultiSelect, {
+    title: 'Stored Features',
+    subtitle: 'Choose what this destination receives.',
+    back,
+    items: features.map(value => ({id: value, label: value[0].toUpperCase() + value.slice(1)})),
+    submit: async items => {
+      try {
+        const result = await bridge('storage-destination-add', {
+          ...screen.draft,
+          features: items.map(item => item.id)
+        });
+        go({name: 'message', title: 'Storage Destination', message: `${result.name} verified and added.`});
+      } catch (error) {
+        go({name: 'message', title: 'Storage Destination', message: error.message});
+      }
+    }
   });
 }
 
@@ -1233,7 +1353,52 @@ function StoragePreferences({go, back}) {
   });
 }
 
+function PostsSettings({go, back}) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    bridge('posts-settings').then(setData);
+  }, []);
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  return h(Menu, {
+    title: 'Posts Settings',
+    subtitle: 'Automatic post delivery.',
+    back,
+    items: [
+      {
+        id: 'start-stop',
+        label: 'Start/Stop',
+        state: data.enabled ? 'Running' : 'Stopped',
+        stateColor: data.enabled ? 'green' : MUTED
+      },
+      {id: 'settings-space', spacer: true},
+      {id: 'posts', label: 'Posts', state: `Every ${data.post_interval_minutes} minutes`},
+      {id: 'updates', label: 'Post Updates', state: `Every ${data.post_update_interval_minutes} minutes`}
+    ],
+    select: item => {
+      if (item.id === 'posts' || item.id === 'updates') {
+        go({name: 'schedule', schedule: item.id});
+        return;
+      }
+
+      bridge('queue', {
+        action: 'feed',
+        payload: {enabled: !data.enabled}
+      }).then(() => go({
+        name: 'message',
+        title: 'Posts Settings',
+        message: data.enabled ? 'Automatic posts stopped.' : 'Automatic posts started.'
+      })).catch(error => go({name: 'message', title: 'Posts Settings', message: error.message}));
+    }
+  });
+}
+
 function Schedule({
+  screen,
   go,
   back
 }) {
@@ -1250,14 +1415,17 @@ function Schedule({
     return h(Loading);
   }
 
-  const choices = [30, 60, 120, 360, 720, 1440];
+  const choices = [2, 5, 15, 30, 60, 120, 360, 720, 1440];
+  const current = screen.schedule === 'posts'
+    ? data.post_interval_minutes
+    : data.post_update_interval_minutes;
 
   return h(
     Menu,
     {
-      title: 'Posts Settings',
+      title: screen.schedule === 'posts' ? 'Posts Schedule' : 'Post Updates Schedule',
       subtitle:
-        `Automatic checks · ${data.timezone} · every ${data.sync_interval_minutes} minutes`,
+        `${data.timezone} · currently every ${current} minutes`,
       back,
       items: choices.map(
         minutes => ({
@@ -1266,7 +1434,7 @@ function Schedule({
             minutes < 60
               ? `${minutes} minutes`
               : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`,
-          state: minutes === data.sync_interval_minutes ? 'Current' : undefined,
+          state: minutes === current ? 'Current' : undefined,
           stateColor: 'green',
           minutes
         })
@@ -1274,14 +1442,14 @@ function Schedule({
       select:
         async item => {
           try {
-            await bridge('schedule-set', {minutes: item.minutes});
+            await bridge('schedule-set', {minutes: item.minutes, schedule: screen.schedule});
             go({
               name: 'message',
-              title: 'Posts Settings',
-              message: `Post checks now run every ${item.minutes} minutes.`
+              title: 'Schedule',
+              message: `${screen.schedule === 'posts' ? 'Posts' : 'Post updates'} now run every ${item.minutes} minutes.`
             });
           } catch (error) {
-            go({name: 'message', title: 'Posts Settings', message: error.message});
+            go({name: 'message', title: 'Schedule', message: error.message});
           }
         }
     }
@@ -1532,7 +1700,7 @@ function Server({
           item.id === 'channel'
         ) {
           go({
-            name: 'set-channel',
+            name: 'channel-picker',
             server
           });
 
@@ -1560,6 +1728,42 @@ function Server({
       }
     }
   );
+}
+
+function ChannelPicker({screen, go, back}) {
+  const server = screen.server;
+
+  return h(Menu, {
+    title: 'Select Channel',
+    subtitle: server.name,
+    back,
+    items: [
+      ...server.channels.map(channel => ({
+        id: channel.id,
+        label: `#${channel.name}`,
+        state: channel.id === server.channel_id ? 'Current' : undefined,
+        channel
+      })),
+      ...(server.channels.length ? [{id: 'manual-space', spacer: true}] : []),
+      {id: 'manual', label: 'Manually Enter Channel ID'}
+    ],
+    select: async item => {
+      if (item.id === 'manual') {
+        go({name: 'set-channel', server});
+        return;
+      }
+
+      try {
+        await bridge('queue', {
+          action: 'set_channel',
+          payload: {guild_id: server.id, channel_id: item.channel.id}
+        });
+        go({name: 'message', title: 'Posting Channel', message: `#${item.channel.name} selected.`});
+      } catch (error) {
+        go({name: 'message', title: 'Posting Channel', message: error.message});
+      }
+    }
+  });
 }
 
 function Posts({
@@ -1592,31 +1796,10 @@ function Posts({
         [
           {
             id: 'update-all',
-            label: 'Update All Now'
+            label: 'Update All Now',
+            color: BLUE
           },
-          {
-            id: 'toggle-updates',
-            label:
-              data.feed_enabled
-                ? 'Pause automatic post updates'
-                : 'Resume automatic post updates',
-            state:
-              data.feed_enabled
-                ? 'Enabled'
-                : 'Paused',
-            stateColor:
-              data.feed_enabled
-                ? 'green'
-                : 'yellow'
-          },
-          {
-            id: 'addons',
-            label: 'Add-ons'
-          },
-          {
-            id: 'posts-settings',
-            label: 'Settings'
-          },
+          {id: 'content-space', spacer: true},
           ...data.items.map(
             post => ({
               id: post.post_id,
@@ -1636,7 +1819,10 @@ function Posts({
                     : undefined,
               post
             })
-          )
+          ),
+          {id: 'management-space', spacer: true},
+          {id: 'addons', label: 'Add-ons'},
+          {id: 'posts-settings', label: 'Settings'}
         ],
       select: item => {
         if (item.id === 'update-all') {
@@ -1664,43 +1850,13 @@ function Posts({
           return;
         }
 
-        if (item.id === 'toggle-updates') {
-          bridge(
-            'queue',
-            {
-              action: 'feed',
-              payload: {
-                enabled:
-                  !data.feed_enabled
-              }
-            }
-          ).then(
-            () => go({
-              name: 'message',
-              title: 'Posts',
-              message:
-                data.feed_enabled
-                  ? 'Automatic post updates paused.'
-                  : 'Automatic post updates resumed.'
-            })
-          ).catch(
-            error => go({
-              name: 'message',
-              title: 'Update failed',
-              message: error.message
-            })
-          );
-
-          return;
-        }
-
         if (item.id === 'addons') {
           go({name: 'posts-addons'});
           return;
         }
 
         if (item.id === 'posts-settings') {
-          go({name: 'schedule'});
+          go({name: 'posts-settings'});
           return;
         }
 
@@ -2106,9 +2262,19 @@ function App() {
     return h(
       Dashboard,
       {
+        go,
         back
       }
     );
+  }
+
+  if (screen.name === 'overview-detail') {
+    return h(ReadOnlyList, {
+      title: screen.title,
+      subtitle: 'Overview',
+      rows: screen.rows,
+      back
+    });
   }
 
   if (
@@ -2153,6 +2319,10 @@ function App() {
     return h(Settings, {go, back});
   }
 
+  if (screen.name === 'posts-settings') {
+    return h(PostsSettings, {go, back});
+  }
+
   if (
     screen.name
     === 'storage'
@@ -2168,6 +2338,34 @@ function App() {
     return h(StorageSettings, {go, back});
   }
 
+  if (screen.name === 'storage-destination') {
+    return h(StorageDestination, {screen, go, back});
+  }
+
+  if (screen.name === 'storage-destination-input') {
+    return h(StorageDestinationInput, {screen, go, back});
+  }
+
+  if (screen.name === 'storage-destination-features') {
+    return h(StorageDestinationFeatures, {screen, go, back});
+  }
+
+  if (screen.name === 'storage-destination-tls') {
+    return h(StorageDestinationTls, {screen, go, back});
+  }
+
+  if (screen.name === 'storage-destination-remove') {
+    return h(Confirm, {
+      title: 'Remove Destination',
+      message: `Remove ${screen.destination.name}? Data already stored there is not deleted.`,
+      back,
+      confirm: async () => {
+        await bridge('storage-destination-remove', {id: screen.destination.id});
+        done('Storage destination removed.');
+      }
+    });
+  }
+
   if (screen.name === 'storage-maintenance') {
     return h(StorageMaintenance, {go, back});
   }
@@ -2180,7 +2378,7 @@ function App() {
     screen.name
     === 'schedule'
   ) {
-    return h(Schedule, {go, back});
+    return h(Schedule, {screen, go, back});
   }
 
   if (
@@ -2456,6 +2654,10 @@ function App() {
           }
       }
     );
+  }
+
+  if (screen.name === 'channel-picker') {
+    return h(ChannelPicker, {screen, go, back});
   }
 
   if (

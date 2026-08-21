@@ -15,6 +15,10 @@ def configured() -> dict:
     channel_id = values.get("MANAGEMENT_CHANNEL_ID", "")
     webhook = values.get("PHOTO_WEBHOOK_URL", "")
     bot_enabled = values.get("BOT_ENABLED", "1") == "1"
+    posts_seconds = int(
+        values.get("POST_INTERVAL_SECONDS", values.get("SYNC_INTERVAL_SECONDS", "1800"))
+    )
+    updates_seconds = int(values.get("POST_UPDATE_INTERVAL_SECONDS", "1800"))
 
     return {
         "token_configured": bool(values.get("DISCORD_TOKEN")),
@@ -25,9 +29,11 @@ def configured() -> dict:
         "photo_webhook_configured": bool(webhook),
         "photo_destination_configured": bool(webhook or (guild_id and channel_id)),
         "sync_interval_minutes": max(
-            30,
-            int(values.get("SYNC_INTERVAL_SECONDS", "1800")) // 60,
+            2,
+            posts_seconds // 60,
         ),
+        "post_interval_minutes": max(2, posts_seconds // 60),
+        "post_update_interval_minutes": max(2, updates_seconds // 60),
         "timezone": datetime.now().astimezone().tzname() or "Local time",
         "state_max_posts": int(values.get("STATE_MAX_POSTS", "1000")),
         "state_max_events": int(values.get("STATE_MAX_EVENTS", "500")),
@@ -65,6 +71,8 @@ def save_value(name: str, value: str) -> None:
         "STATE_MAX_EVENTS",
         "STATE_BACKUP_COUNT",
         "BOT_ENABLED",
+        "POST_INTERVAL_SECONDS",
+        "POST_UPDATE_INTERVAL_SECONDS",
     }
 
     if name not in allowed:
@@ -83,6 +91,8 @@ def save_value(name: str, value: str) -> None:
         "STATE_MAX_POSTS",
         "STATE_MAX_EVENTS",
         "STATE_BACKUP_COUNT",
+        "POST_INTERVAL_SECONDS",
+        "POST_UPDATE_INTERVAL_SECONDS",
     }
 
     if name in numeric and not value.isdigit():
@@ -90,6 +100,11 @@ def save_value(name: str, value: str) -> None:
 
     if name == "SYNC_INTERVAL_SECONDS" and not 1800 <= int(value) <= 86400:
         raise ValueError("Choose an interval from 30 minutes to 24 hours.")
+
+    if name in {"POST_INTERVAL_SECONDS", "POST_UPDATE_INTERVAL_SECONDS"} and not (
+        120 <= int(value) <= 86400
+    ):
+        raise ValueError("Choose an interval from 2 minutes to 24 hours.")
 
     if name == "BOT_ENABLED" and value not in {"0", "1"}:
         raise ValueError("Bot state must be enabled or disabled.")

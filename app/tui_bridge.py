@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import discord
@@ -16,6 +16,12 @@ import discord
 from app.control import enqueue
 from app.local_config import clear_photo_destination, configured, save_value
 from app.storage import JsonStateStore
+from app.storage_destinations import (
+    add_destination,
+    public_destinations,
+    remove_destination,
+    sync_destination,
+)
 from app.updates import install_update, update_status
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -214,6 +220,19 @@ async def async_main(
             {},
         )
 
+        config = configured()
+        system = state.get("system", {})
+        counters = state.get("analytics", {}).get("counters", {})
+
+        def next_run(value, minutes):
+            if not value:
+                return None
+
+            try:
+                return (datetime.fromisoformat(value) + timedelta(minutes=minutes)).isoformat()
+            except ValueError:
+                return None
+
         return {
             "daemon": daemon_status(),
             "feed_enabled": state.get(
@@ -255,6 +274,28 @@ async def async_main(
                     {},
                 )
             ),
+            "members": sum(
+                int(item.get("member_count") or 0)
+                for item in guilds.values()
+                if not item.get("removed_at")
+            ),
+            "activity_events": len(state.get("analytics", {}).get("events", [])),
+            "interactions": int(counters.get("photo_button_click", 0)),
+            "photo_submissions": int(counters.get("photo_submission", 0)),
+            "delivery_failures": int(counters.get("delivery_error", 0)),
+            "sync_failures": int(counters.get("sync_error", 0)),
+            "storage_bytes": store.path.stat().st_size if store.path.exists() else 0,
+            "last_post_check_at": system.get("last_post_check_at"),
+            "last_post_update_check_at": system.get("last_post_update_check_at"),
+            "next_post_check_at": next_run(
+                system.get("last_post_check_at"), config["post_interval_minutes"]
+            ),
+            "next_post_update_check_at": next_run(
+                system.get("last_post_update_check_at"),
+                config["post_update_interval_minutes"],
+            ),
+            "post_interval_minutes": config["post_interval_minutes"],
+            "post_update_interval_minutes": config["post_update_interval_minutes"],
         }
 
     if command == "servers":
@@ -286,6 +327,7 @@ async def async_main(
                     "channel_id": record.get(
                         "channel_id"
                     ),
+                    "channels": record.get("available_channels", []),
                     "removed": bool(
                         record.get(
                             "removed_at"
@@ -324,6 +366,15 @@ async def async_main(
         return {
             "items": items[:100],
             "feed_enabled": state.get("system", {}).get("feed_enabled", True),
+        }
+
+    if command == "posts-settings":
+        config = configured()
+        return {
+            "enabled": state.get("system", {}).get("feed_enabled", True),
+            "post_interval_minutes": config["post_interval_minutes"],
+            "post_update_interval_minutes": config["post_update_interval_minutes"],
+            "timezone": config["timezone"],
         }
 
     if command == "activity":
@@ -375,6 +426,19 @@ async def async_main(
             "state_location": "data/state.json",
             "archive_location": "data/backups",
         }
+
+    if command == "storage-destinations":
+        return {"items": public_destinations()}
+
+    if command == "storage-destination-add":
+        return await add_destination(data, state)
+
+    if command == "storage-destination-sync":
+        return await sync_destination(str(data.get("id", "")), state)
+
+    if command == "storage-destination-remove":
+        remove_destination(str(data.get("id", "")))
+        return {"removed": True}
 
     if command == "storage-clean":
         removed = {"actions": 0, "broadcasts": 0}
@@ -454,14 +518,23 @@ async def async_main(
 
     if command == "schedule-set":
         minutes = int(data.get("minutes", 0))
+        schedule = str(data.get("schedule", "posts"))
         seconds = minutes * 60
-        save_value("SYNC_INTERVAL_SECONDS", str(seconds))
+        setting = {
+            "posts": "POST_INTERVAL_SECONDS",
+            "updates": "POST_UPDATE_INTERVAL_SECONDS",
+        }.get(schedule)
+
+        if not setting:
+            raise ValueError("Unknown post schedule.")
+
+        save_value(setting, str(seconds))
         action_id = await enqueue(
             store,
             "sync_interval",
-            {"seconds": seconds},
+            {"seconds": seconds, "schedule": schedule},
         )
-        return {"action_id": action_id, "minutes": minutes}
+        return {"action_id": action_id, "minutes": minutes, "schedule": schedule}
 
     if command == "retention-set":
         values = {

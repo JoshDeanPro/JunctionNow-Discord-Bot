@@ -5,9 +5,14 @@ each Discord message up to date.
 
 ## How It Works
 
-Every 30 minutes, one feed check finds both new and changed articles. New posts
-are delivered once. Changed articles edit the existing Discord message by its
-saved message ID. Unchanged posts do not cause Discord message lookups.
+Posts and Post Updates each default to 30 minutes and can be changed under
+**Features → Posts → Settings**. They share one scheduler. Posts uses the
+lightweight feed; Post Updates also checks article pages for edits. New posts are
+delivered once. Changed articles edit the existing Discord message by its saved
+message ID. Unchanged posts do not cause Discord message lookups.
+
+Restarting the bot does not force every check. Saved timestamps let it run only
+the work that is due. **Update All Now** is the explicit full check.
 
 The bot recreates a delivery when Discord reports that its message was deleted,
 unless the post was deliberately withdrawn. discord.py handles Discord rate
@@ -39,6 +44,10 @@ Its menus contain:
 Post scheduling lives under **Features → Posts → Settings**. Data retention has one
 home under **Storage → Preferences**.
 
+Server managers normally choose their posting channel through `/setup`. The Bot
+Manager can also select a sendable channel from Discord's Gateway cache, with
+manual channel ID entry available as a fallback.
+
 Posts contains its own controls and Add-ons. Request Photos and its destination
 live only under **Features → Posts → Add-ons**. Request Photos stays unavailable
 until the private destination is configured. Broadcast messages retain their
@@ -55,6 +64,11 @@ Private values are saved atomically in the gitignored `.env` file with private
 file permissions. Tokens are masked during entry and are never shown again.
 Runtime state stays in `data/state.json`, with process locking, atomic writes,
 bounded backups, and bounded activity history.
+
+JSON is always active. Optional MySQL and PostgreSQL destinations can mirror
+selected feature data. The manager verifies each connection before saving it.
+Database credentials stay in `private/storage.json`, are readable only by the
+local account, and are never returned to the UI after saving.
 
 Photo requests belong to individual posts. When enabled, delivered messages get
 a **Submit Photos** button. Users confirm ownership before uploading. Submissions
@@ -79,7 +93,7 @@ after setup:
 
     sudo ./scripts/install_daemon.sh
 
-The bot needs no Docker, database server, HTTP API, Redis, or external telemetry.
+The default setup needs no Docker, database server, HTTP API, Redis, or external telemetry.
 
 ## Validate
 
@@ -88,5 +102,9 @@ The bot needs no Docker, database server, HTTP API, Redis, or external telemetry
     .venv/bin/pytest -q
     npm --prefix ui run check
 
-This repository is private, but secrets, local state, private IDs, and personal
-paths must still never be committed. See `SECURITY.md` and `CONTRIBUTING.md`.
+## Safety
+
+Keep `.env`, tokens, webhook URLs, database passwords, private IDs, local state,
+and personal paths out of Git. If a secret is exposed, revoke it before removing
+it from history. Run the safety scanner before every push. Updates accept only a
+clean, fast-forward change from this project's GitHub `main` branch.
