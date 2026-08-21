@@ -11,7 +11,6 @@ from pathlib import Path
 
 import discord
 
-from app.config import get_settings
 from app.control import enqueue
 from app.local_config import clear_photo_destination, configured, save_value
 from app.storage import JsonStateStore
@@ -68,11 +67,9 @@ def daemon_pid() -> int | None:
         os.kill(pid, 0)
         return pid
 
-    except (
-        ValueError,
-        ProcessLookupError,
-        PermissionError,
-    ):
+    except PermissionError:
+        return pid
+    except (ValueError, ProcessLookupError):
         return None
 
 
@@ -94,21 +91,6 @@ def daemon_start() -> dict:
             "pid": current,
         }
 
-    log_path = (
-        ROOT
-        / get_settings().log_file
-    ).resolve()
-
-    log_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    handle = log_path.open(
-        "a",
-        encoding="utf-8",
-    )
-
     process = subprocess.Popen(
         [
             str(
@@ -122,8 +104,8 @@ def daemon_start() -> dict:
         ],
         cwd=ROOT,
         stdin=subprocess.DEVNULL,
-        stdout=handle,
-        stderr=handle,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
 
