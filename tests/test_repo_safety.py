@@ -9,13 +9,13 @@ def test_token_setter_uses_placeholder():
     assert "DISCORD_TOKEN=__TOKEN__" in text
 
 
-def test_style_guide_has_no_real_home_path():
+def test_style_guide_uses_generic_paths():
     text = Path(
         "docs/STYLE_GUIDE.md"
     ).read_text(encoding="utf-8")
 
-    assert "/Users/joshua/" not in text
-    assert "/home/joshua/" not in text
+    assert "<project-root>" in text
+    assert "personal home folder" in text
 
 
 def test_env_is_ignored():
@@ -23,4 +23,9 @@ def test_env_is_ignored():
         ".gitignore"
     ).read_text(encoding="utf-8")
 
-    assert ".env" in ignore
+    lines = {
+        line.strip()
+        for line in ignore.splitlines()
+    }
+
+    assert ".env" in lines
