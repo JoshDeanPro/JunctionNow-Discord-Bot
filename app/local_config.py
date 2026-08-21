@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,8 @@ def configured() -> dict:
         "photo_channel_id": channel_id,
         "photo_webhook_configured": bool(webhook),
         "photo_destination_configured": bool(webhook or (guild_id and channel_id)),
+        "sync_interval_minutes": int(values.get("SYNC_INTERVAL_SECONDS", "1800")) // 60,
+        "timezone": datetime.now().astimezone().tzname() or "Local time",
     }
 
 
@@ -49,6 +52,7 @@ def save_value(name: str, value: str) -> None:
         "MANAGEMENT_GUILD_ID",
         "MANAGEMENT_CHANNEL_ID",
         "PHOTO_WEBHOOK_URL",
+        "SYNC_INTERVAL_SECONDS",
     }
 
     if name not in allowed:
@@ -63,10 +67,14 @@ def save_value(name: str, value: str) -> None:
         "DISCORD_APPLICATION_ID",
         "MANAGEMENT_GUILD_ID",
         "MANAGEMENT_CHANNEL_ID",
+        "SYNC_INTERVAL_SECONDS",
     }
 
     if name in numeric and not value.isdigit():
         raise ValueError("This value must contain only numbers.")
+
+    if name == "SYNC_INTERVAL_SECONDS" and not 1800 <= int(value) <= 86400:
+        raise ValueError("Choose an interval from 30 minutes to 24 hours.")
 
     if name == "PHOTO_WEBHOOK_URL" and not value.startswith(
         ("https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/")

@@ -29,11 +29,11 @@ the bot. Running `./bin/jnbot` safely installs the command when it is missing.
 Its menus contain:
 
 - **Overview** for counts and delivery state
-- **Bot Settings** for setup, required permissions, invites, installed servers,
-  and bot start or stop
+- **Servers** for installed-server controls and delivery state
 - **Features** for Posts, Photos, and Broadcast
-- **Activity** for recent local records
-- **Bot Manager** for approved updates or uninstalling the local command
+- **Bot** for internal credentials, channels, logs, analytics, and invites
+- **Storage** for active JSON state and activity records
+- **Settings** for schedule, start, stop, updates, and manager uninstall
 
 Posts contains its own controls and Add-ons. Request Photos and its destination
 live only under **Features → Posts → Add-ons**.

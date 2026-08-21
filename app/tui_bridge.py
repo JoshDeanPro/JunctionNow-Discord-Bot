@@ -394,6 +394,17 @@ async def async_main(
             "action_id": action_id
         }
 
+    if command == "schedule-set":
+        minutes = int(data.get("minutes", 0))
+        seconds = minutes * 60
+        save_value("SYNC_INTERVAL_SECONDS", str(seconds))
+        action_id = await enqueue(
+            store,
+            "sync_interval",
+            {"seconds": seconds},
+        )
+        return {"action_id": action_id, "minutes": minutes}
+
     raise ValueError(
         f"Unknown command: {command}"
     )

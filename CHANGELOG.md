@@ -15,6 +15,8 @@
 - Added safe invite-link copy, minimum permissions, self-install, and uninstall.
 - Replaced Discord `/config` and `/status` with friendly `/setup` and `/edit`.
 - Renamed Dashboard to Overview and added Space/Enter article multi-selects.
+- Added Settings scheduling with automatic local timezone detection.
+- Promoted Servers, Bot, Storage, and Settings to the main manager menu.
 - Moved private Discord setup into `jnbot` and removed separate token scripts.
 - Updated rendered posts when article-page metadata changes.
 - Kept photo requests and withdrawals intact when feed content changes.

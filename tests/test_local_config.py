@@ -52,3 +52,16 @@ def test_photo_webhook_is_private_and_validated(tmp_path, monkeypatch):
     status = local_config.configured()
     assert status["photo_webhook_configured"] is True
     assert "webhook_url" not in status
+
+
+def test_schedule_is_bounded_and_reports_local_timezone(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")
+
+    with pytest.raises(ValueError, match="30 minutes"):
+        local_config.save_value("SYNC_INTERVAL_SECONDS", "60")
+
+    local_config.save_value("SYNC_INTERVAL_SECONDS", "3600")
+    status = local_config.configured()
+
+    assert status["sync_interval_minutes"] == 60
+    assert status["timezone"]

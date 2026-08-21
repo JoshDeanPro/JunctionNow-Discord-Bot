@@ -160,6 +160,7 @@ class ControlWorker:
         handlers = {
             "feed": self.feed,
             "sync_now": self.sync_now,
+            "sync_interval": self.sync_interval,
             "ban_server": self.ban_server,
             "unban_server": self.unban_server,
             "set_channel": self.set_channel,
@@ -183,6 +184,14 @@ class ControlWorker:
 
     async def sync_now(self, payload: dict) -> None:
         await self.bot.sync_engine.sync_once()
+
+    async def sync_interval(self, payload: dict) -> None:
+        seconds = int(payload["seconds"])
+
+        if not 1800 <= seconds <= 86400:
+            raise ValueError("Post checks must be 30 minutes to 24 hours apart.")
+
+        self.bot.background_sync.change_interval(seconds=seconds)
 
     async def feed(self, payload: dict) -> None:
         enabled = bool(

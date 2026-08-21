@@ -796,20 +796,24 @@ function Root({
           label: 'Overview'
         },
         {
-          id: 'bot-settings',
-          label: 'Bot Settings'
+          id: 'servers',
+          label: 'Servers'
         },
         {
           id: 'features',
           label: 'Features'
         },
         {
-          id: 'activity',
-          label: 'Activity'
+          id: 'bot',
+          label: 'Bot'
         },
         {
-          id: 'manager',
-          label: 'Bot Manager'
+          id: 'storage',
+          label: 'Storage'
+        },
+        {
+          id: 'settings',
+          label: 'Settings'
         }
       ],
       select:
@@ -954,27 +958,46 @@ function Dashboard({
   );
 }
 
-function BotSettings({
+function Bot({
   go,
   back
 }) {
+  const [data, setData] = useState(null);
+
+  useEffect(
+    () => {
+      bridge('config-status').then(setData);
+    },
+    []
+  );
+
+  if (!data) {
+    return h(Loading);
+  }
+
   return h(
     Menu,
     {
-      title: 'Bot Settings',
-      subtitle: 'Setup, permissions, invites, and service controls.',
+      title: 'Bot',
+      subtitle: 'Internal JunctionNow bot configuration.',
       back,
       items: [
-        {id: 'setup', label: 'Configure bot'},
-        {id: 'servers', label: 'Installed servers'},
+        {id: 'setup', label: 'Credentials'},
+        {
+          id: 'photo-setup',
+          label:
+            data.photo_destination_configured
+              ? 'Channel Configuration: configured'
+              : 'Channel Configuration: not configured'
+        },
+        {id: 'activity', label: 'Logs'},
+        {id: 'overview', label: 'Analytics'},
         {id: 'invite-copy', label: 'Copy invite link'},
-        {id: 'invite-show', label: 'Invite bot or restore permissions'},
-        {id: 'start', label: 'Start bot'},
-        {id: 'stop', label: 'Stop bot'}
+        {id: 'invite-show', label: 'Invite bot or restore permissions'}
       ],
       select: item => {
-        if (item.id === 'start' || item.id === 'stop') {
-          go({name: 'bot-action', action: item.id});
+        if (item.id === 'photo-setup') {
+          go({name: 'photo-setup', config: data});
           return;
         }
 
@@ -1004,21 +1027,102 @@ function Features({
   );
 }
 
-function Manager({
+function Settings({
   go,
   back
 }) {
   return h(
     Menu,
     {
-      title: 'Bot Manager',
-      subtitle: 'Update or remove the local manager command.',
+      title: 'Settings',
+      subtitle: 'Runtime and Bot Manager settings.',
       back,
       items: [
+        {id: 'schedule', label: 'Schedule'},
+        {id: 'start', label: 'Start bot'},
+        {id: 'stop', label: 'Stop bot'},
         {id: 'updates', label: 'Updates'},
         {id: 'manager-uninstall', label: 'Uninstall Bot Manager'}
       ],
+      select: item => go(
+        item.id === 'start' || item.id === 'stop'
+          ? {name: 'bot-action', action: item.id}
+          : {name: item.id}
+      )
+    }
+  );
+}
+
+function Storage({
+  go,
+  back
+}) {
+  return h(
+    Menu,
+    {
+      title: 'Storage',
+      subtitle: 'Active local storage.',
+      back,
+      items: [
+        {id: 'storage-info', label: 'JSON · data/state.json'},
+        {id: 'activity', label: 'Activity records'}
+      ],
       select: item => go({name: item.id})
+    }
+  );
+}
+
+function Schedule({
+  go,
+  back
+}) {
+  const [data, setData] = useState(null);
+
+  useEffect(
+    () => {
+      bridge('config-status').then(setData);
+    },
+    []
+  );
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  const choices = [30, 60, 120, 360, 720, 1440];
+
+  return h(
+    Menu,
+    {
+      title: 'Schedule',
+      subtitle:
+        `Detected timezone: ${data.timezone} · Current: ${data.sync_interval_minutes} minutes`,
+      back,
+      items: choices.map(
+        minutes => ({
+          id: String(minutes),
+          label:
+            minutes < 60
+              ? `${minutes} minutes`
+              : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`,
+          status: minutes === data.sync_interval_minutes ? '●' : undefined,
+          statusColor: 'green',
+          minutes
+        })
+      ),
+      select:
+        async item => {
+          try {
+            await bridge('schedule-set', {minutes: item.minutes});
+            go({
+              name: 'message',
+              title: 'Schedule',
+              message: `Post checks now run every ${item.minutes} minutes.`
+            });
+          } catch (error) {
+            go({name: 'message', title: 'Schedule failed', message: error.message});
+          }
+        }
     }
   );
 }
@@ -1863,9 +1967,9 @@ function App() {
 
   if (
     screen.name
-    === 'bot-settings'
+    === 'bot'
   ) {
-    return h(BotSettings, {go, back});
+    return h(Bot, {go, back});
   }
 
   if (
@@ -1877,9 +1981,38 @@ function App() {
 
   if (
     screen.name
-    === 'manager'
+    === 'settings'
   ) {
-    return h(Manager, {go, back});
+    return h(Settings, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'storage'
+  ) {
+    return h(Storage, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'schedule'
+  ) {
+    return h(Schedule, {go, back});
+  }
+
+  if (
+    screen.name
+    === 'storage-info'
+  ) {
+    return h(
+      Message,
+      {
+        title: 'JSON Storage',
+        message:
+          'Active state is stored in data/state.json with atomic writes, locking, and bounded backups.',
+        back
+      }
+    );
   }
 
   if (

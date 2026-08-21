@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -45,3 +45,14 @@ async def test_manual_post_update_runs_full_sync():
     await ControlWorker(bot).execute("sync_now", {})
 
     sync_engine.sync_once.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_schedule_change_updates_running_loop():
+    background_sync = type("Loop", (), {})()
+    background_sync.change_interval = MagicMock()
+    bot = type("Bot", (), {"background_sync": background_sync})()
+
+    await ControlWorker(bot).sync_interval({"seconds": 3600})
+
+    background_sync.change_interval.assert_called_once_with(seconds=3600)

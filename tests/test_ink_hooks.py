@@ -75,8 +75,10 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "title: 'Add-ons'" in text
     assert "'Request Photos'" in text
     assert "title: 'Features'" in text
-    assert "title: 'Bot Settings'" in text
-    assert "title: 'Bot Manager'" in text
+    assert "title: 'Bot'" in text
+    assert "title: 'Storage'" in text
+    assert "title: 'Settings'" in text
     assert "'enter save   esc cancel'" in text
     assert "space select   enter submit   esc back" in text
     assert "label: 'Overview'" in text
+    assert "Detected timezone:" in text
