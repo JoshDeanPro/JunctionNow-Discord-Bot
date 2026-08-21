@@ -23,3 +23,32 @@ def test_private_settings_reject_unknown_names(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="cannot be changed"):
         local_config.save_value("UNSAFE_SETTING", "value")
+
+
+def test_photo_destination_requires_channel_or_webhook(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")
+
+    local_config.save_value("MANAGEMENT_GUILD_ID", "123")
+    assert local_config.configured()["photo_destination_configured"] is False
+
+    local_config.save_value("MANAGEMENT_CHANNEL_ID", "456")
+    assert local_config.configured()["photo_destination_configured"] is True
+
+    local_config.clear_photo_destination()
+    assert local_config.configured()["photo_destination_configured"] is False
+
+
+def test_photo_webhook_is_private_and_validated(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")
+
+    with pytest.raises(ValueError, match="valid Discord webhook"):
+        local_config.save_value("PHOTO_WEBHOOK_URL", "https://example.com/hook")
+
+    local_config.save_value(
+        "PHOTO_WEBHOOK_URL",
+        "https://discord.com/api/webhooks/123/private-value",
+    )
+
+    status = local_config.configured()
+    assert status["photo_webhook_configured"] is True
+    assert "webhook_url" not in status

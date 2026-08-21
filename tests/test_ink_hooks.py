@@ -65,3 +65,12 @@ def test_menu_wraps_and_only_escape_exits():
     assert "if (key.escape)" in menu
     assert "if (key.leftArrow && back)" in menu
     assert menu.count("exit();") == 1
+
+
+def test_photo_controls_have_one_clear_hierarchy():
+    text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
+
+    assert "Use a server and channel together, or use a webhook." in text
+    assert "enter save   esc cancel" in text
+    assert "title: 'Add-ons'" in text
+    assert "'Request Photos'" in text

@@ -9,6 +9,8 @@
 - Replaced raw event timestamps with friendly local dates in `jnbot`.
 - Made menu movement wrap and limited root-menu exit to Esc or Ctrl-C.
 - Consolidated the project guides into the README.
+- Added complete channel or webhook photo destinations in `jnbot`.
+- Moved article photo requests under **Posts → Add-ons**.
 - Moved private Discord setup into `jnbot` and removed separate token scripts.
 - Updated rendered posts when article-page metadata changes.
 - Kept photo requests and withdrawals intact when feed content changes.

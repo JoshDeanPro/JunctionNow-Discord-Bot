@@ -89,8 +89,6 @@ class JunctionNowBot(commands.Bot):
                 guild
             )
 
-        await self.operator_channels.ensure()
-
     async def on_guild_join(
         self,
         guild: discord.Guild,

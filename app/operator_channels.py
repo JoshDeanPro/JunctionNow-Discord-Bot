@@ -1,119 +1,40 @@
 from __future__ import annotations
 
+import os
+
 import discord
+
+from app.local_config import read_values
 
 
 class OperatorChannels:
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    async def ensure(self) -> None:
-        guild_id = self.bot.settings.management_guild_id
+    async def photos(self) -> discord.TextChannel | discord.Webhook | None:
+        values = read_values()
 
-        if not guild_id:
-            return
+        def setting(name: str) -> str:
+            return values.get(name) or os.environ.get(name, "").strip()
 
-        guild = self.bot.get_guild(guild_id)
+        webhook_url = setting("PHOTO_WEBHOOK_URL")
 
-        if guild is None:
-            return
+        if webhook_url:
+            try:
+                return discord.Webhook.from_url(webhook_url, client=self.bot)
+            except ValueError:
+                return None
 
-        state = await self.bot.store.snapshot()
+        guild_id = setting("MANAGEMENT_GUILD_ID")
+        channel_id = setting("MANAGEMENT_CHANNEL_ID")
 
-        raw = (
-            state.get("operator", {})
-            .get("photo_channel_id")
-        )
-
-        if raw:
-            channel = guild.get_channel(int(raw))
-
-            if channel:
-                return
-
-        existing = discord.utils.get(
-            guild.text_channels,
-            name="jn-photo-submissions",
-        )
-
-        if existing:
-            await self._save(existing.id)
-            return
-
-        member = guild.me
-
-        if (
-            member is None
-            or not member.guild_permissions.manage_channels
-        ):
-            return
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(
-                view_channel=False,
-            ),
-            member: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True,
-                attach_files=True,
-                embed_links=True,
-            ),
-        }
-
-        for user_id in self.bot.settings.management_operator_ids:
-            operator = guild.get_member(user_id)
-
-            if operator:
-                overwrites[operator] = discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    attach_files=True,
-                )
-
-        channel = await guild.create_text_channel(
-            "jn-photo-submissions",
-            overwrites=overwrites,
-            reason="JunctionNow photo submissions",
-        )
-
-        await self._save(channel.id)
-
-    async def _save(self, channel_id: int) -> None:
-        def change(state):
-            operator = state.setdefault(
-                "operator",
-                {},
-            )
-
-            operator["photo_channel_id"] = str(
-                channel_id
-            )
-
-        await self.bot.store.mutate(change)
-
-    async def photos(
-        self,
-    ) -> discord.TextChannel | None:
-        state = await self.bot.store.snapshot()
-
-        raw = (
-            state.get("operator", {})
-            .get("photo_channel_id")
-        )
-
-        if not raw:
+        if not guild_id or not channel_id:
             return None
 
-        channel = self.bot.get_channel(
-            int(raw)
-        )
+        try:
+            guild = self.bot.get_guild(int(guild_id))
+            channel = guild.get_channel(int(channel_id)) if guild else None
+        except ValueError:
+            return None
 
-        if isinstance(
-            channel,
-            discord.TextChannel,
-        ):
-            return channel
-
-        return None
+        return channel if isinstance(channel, discord.TextChannel) else None

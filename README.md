@@ -45,7 +45,10 @@ bounded backups, and bounded activity history.
 
 Photo requests belong to individual posts. When enabled, delivered messages get
 a **Submit Photos** button. Users confirm ownership before uploading. Submissions
-go only to the optional private photo destination.
+go only to the optional private photo destination. Configure either a Discord
+server and channel ID together, or a private Discord webhook. Photo settings are
+active as soon as they are saved. Token and Application ID changes are durable
+immediately and take effect after the bot restarts.
 
 ## Install
 

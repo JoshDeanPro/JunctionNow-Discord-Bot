@@ -539,7 +539,17 @@ function LineInput({
       )
     ),
     h(
-      Footer
+      Box,
+      {
+        marginTop: 1
+      },
+      h(
+        Text,
+        {
+          color: DIM
+        },
+        'enter save   esc cancel'
+      )
     )
   );
 }
@@ -865,7 +875,64 @@ function Setup({
       ],
       select:
         item => go({
-          name: 'setup-value',
+          name:
+            item.id === 'photo-destination'
+              ? 'photo-setup'
+              : 'setup-value',
+          setting: item.id,
+          config: data
+        })
+    }
+  );
+}
+
+function PhotoSetup({
+  screen,
+  go,
+  back
+}) {
+  const data = screen.config;
+
+  return h(
+    Menu,
+    {
+      title: 'Photo destination',
+      subtitle:
+        'Use a server and channel together, or use a webhook.',
+      back,
+      items: [
+        {
+          id: 'photo-server',
+          label:
+            data.photo_guild_id
+              ? `Server ID: ${data.photo_guild_id}`
+              : 'Server ID: not configured'
+        },
+        {
+          id: 'photo-channel',
+          label:
+            data.photo_channel_id
+              ? `Channel ID: ${data.photo_channel_id}`
+              : 'Channel ID: not configured'
+        },
+        {
+          id: 'photo-webhook',
+          label:
+            data.photo_webhook_configured
+              ? 'Webhook: configured'
+              : 'Webhook: not configured'
+        },
+        {
+          id: 'photo-clear',
+          label: 'Disable photo destination'
+        }
+      ],
+      select:
+        item => go({
+          name:
+            item.id === 'photo-clear'
+              ? 'photo-clear'
+              : 'setup-value',
           setting: item.id
         })
     }
@@ -1155,11 +1222,8 @@ function Post({
       back,
       items: [
         {
-          id: 'photos',
-          label:
-            post.photo_requested
-              ? 'Stop requesting photos'
-              : 'Request photos'
+          id: 'addons',
+          label: 'Add-ons'
         },
         {
           id:
@@ -1174,6 +1238,41 @@ function Post({
         {
           id: 'delete',
           label: 'Delete stored post data'
+        }
+      ],
+      select:
+        item => go({
+          name:
+            item.id === 'addons'
+              ? 'post-addons'
+              : 'post-action',
+          action: item.id,
+          post
+        })
+    }
+  );
+}
+
+function PostAddons({
+  screen,
+  go,
+  back
+}) {
+  const post = screen.post;
+
+  return h(
+    Menu,
+    {
+      title: 'Add-ons',
+      subtitle: post.title || 'JunctionNow',
+      back,
+      items: [
+        {
+          id: 'photos',
+          label:
+            post.photo_requested
+              ? 'Stop requesting photos'
+              : 'Request Photos'
         }
       ],
       select:
@@ -1481,6 +1580,39 @@ function App() {
 
   if (
     screen.name
+    === 'photo-setup'
+  ) {
+    return h(
+      PhotoSetup,
+      {
+        screen,
+        go,
+        back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'photo-clear'
+  ) {
+    return h(
+      Confirm,
+      {
+        title: 'Disable photo destination',
+        message: 'Stop routing new photo submissions?',
+        back,
+        confirm:
+          async () => {
+            await bridge('config-clear-photo');
+            done('Photo destination disabled.');
+          }
+      }
+    );
+  }
+
+  if (
+    screen.name
     === 'setup-value'
   ) {
     const settings = {
@@ -1496,11 +1628,23 @@ function App() {
         name: 'DISCORD_APPLICATION_ID',
         secret: false
       },
-      'photo-destination': {
-        title: 'Photo destination server',
-        help: 'Enter the optional private Discord server ID.',
+      'photo-server': {
+        title: 'Photo destination server ID',
+        help: 'A channel ID is also required.',
         name: 'MANAGEMENT_GUILD_ID',
         secret: false
+      },
+      'photo-channel': {
+        title: 'Photo destination channel ID',
+        help: 'The channel must be inside the configured server.',
+        name: 'MANAGEMENT_CHANNEL_ID',
+        secret: false
+      },
+      'photo-webhook': {
+        title: 'Photo destination webhook',
+        help: 'Paste a private Discord webhook URL. It will not be shown.',
+        name: 'PHOTO_WEBHOOK_URL',
+        secret: true
       }
     };
 
@@ -1527,7 +1671,12 @@ function App() {
               );
 
               done(
-                `${setting.title} saved. Restart the bot to apply it.`
+                screen.setting === 'token'
+                || screen.setting === 'application'
+                  ? `${setting.title} saved. Restart the bot to apply it.`
+                  : screen.setting === 'photo-webhook'
+                    ? `${setting.title} saved and active.`
+                    : `${setting.title} saved. Complete both IDs to activate it.`
               );
             } catch (error) {
               done(error.message);
@@ -1718,6 +1867,20 @@ function App() {
   ) {
     return h(
       Post,
+      {
+        screen,
+        go,
+        back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'post-addons'
+  ) {
+    return h(
+      PostAddons,
       {
         screen,
         go,
