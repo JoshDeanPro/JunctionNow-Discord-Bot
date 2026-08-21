@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import discord
@@ -108,7 +109,7 @@ def daemon_start() -> dict:
         encoding="utf-8",
     )
 
-    subprocess.Popen(
+    process = subprocess.Popen(
         [
             str(
                 ROOT
@@ -126,8 +127,14 @@ def daemon_start() -> dict:
         start_new_session=True,
     )
 
+    time.sleep(1)
+
+    if process.poll() is not None:
+        raise RuntimeError("The bot stopped during startup. Check the bot log.")
+
     return {
         "running": True,
+        "pid": process.pid,
     }
 
 

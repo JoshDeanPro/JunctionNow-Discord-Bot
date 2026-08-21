@@ -65,3 +65,11 @@ def test_schedule_is_bounded_and_reports_local_timezone(tmp_path, monkeypatch):
 
     assert status["sync_interval_minutes"] == 60
     assert status["timezone"]
+
+
+def test_old_short_schedule_reports_effective_minimum(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("SYNC_INTERVAL_SECONDS=300\n", encoding="utf-8")
+    monkeypatch.setattr(local_config, "ENV_FILE", env_file)
+
+    assert local_config.configured()["sync_interval_minutes"] == 30

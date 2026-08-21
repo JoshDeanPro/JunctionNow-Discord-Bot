@@ -22,7 +22,10 @@ def configured() -> dict:
         "photo_channel_id": channel_id,
         "photo_webhook_configured": bool(webhook),
         "photo_destination_configured": bool(webhook or (guild_id and channel_id)),
-        "sync_interval_minutes": int(values.get("SYNC_INTERVAL_SECONDS", "1800")) // 60,
+        "sync_interval_minutes": max(
+            30,
+            int(values.get("SYNC_INTERVAL_SECONDS", "1800")) // 60,
+        ),
         "timezone": datetime.now().astimezone().tzname() or "Local time",
     }
 
