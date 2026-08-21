@@ -46,10 +46,7 @@ Example:
 
 Never place a person's home folder in project docs.
 
-Do not write:
-
-    /Users/name/project
-    /home/name/project
+Do not use a personal home folder in project docs.
 
 Use:
 

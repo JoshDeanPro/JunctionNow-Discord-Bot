@@ -7,14 +7,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-FORBIDDEN = {
+FORBIDDEN_TRACKED = {
     ".env",
     ".env.local",
     "credentials.json",
     "data/state.json",
 }
 
-SKIP = {
+SKIP_SUFFIXES = {
     ".png",
     ".jpg",
     ".jpeg",
@@ -23,6 +23,7 @@ SKIP = {
     ".pdf",
     ".zip",
     ".gz",
+    ".tar",
 }
 
 PATTERNS = (
@@ -31,7 +32,15 @@ PATTERNS = (
         re.compile(
             r"https://(?:canary\.|ptb\.)?"
             r"discord(?:app)?\.com/api/webhooks/"
-            r"\d+/[A-Za-z0-9._-]+"
+            r"\d+/[A-Za-z0-9._-]{20,}"
+        ),
+    ),
+    (
+        "Discord token",
+        re.compile(
+            r"\b[A-Za-z0-9_-]{20,}"
+            r"\.[A-Za-z0-9_-]{6,}"
+            r"\.[A-Za-z0-9_-]{20,}\b"
         ),
     ),
     (
@@ -39,6 +48,12 @@ PATTERNS = (
         re.compile(
             r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|"
             r"github_pat_[A-Za-z0-9_]{20,})\b"
+        ),
+    ),
+    (
+        "AWS access key",
+        re.compile(
+            r"\bAKIA[0-9A-Z]{16}\b"
         ),
     ),
     (
@@ -50,34 +65,73 @@ PATTERNS = (
         ),
     ),
     (
-        "personal macOS path",
+        "personal macOS home path",
         re.compile(
-            r"/Users/[A-Za-z0-9._-]+/"
+            r"/Users/(?!name(?:/|$)|user(?:/|$)|<)"
+            r"[A-Za-z0-9._-]+/"
+        ),
+    ),
+    (
+        "personal Linux home path",
+        re.compile(
+            r"/home/(?!name(?:/|$)|user(?:/|$)|<)"
+            r"[A-Za-z0-9._-]+/"
         ),
     ),
 )
 
-ENV_SECRET = re.compile(
-    r"^\s*(?:DISCORD_TOKEN|PASSWORD|API_KEY|SECRET)"
-    r"\s*=\s*(\S+)\s*$",
-    re.MULTILINE,
+PLACEHOLDERS = {
+    "",
+    "__TOKEN__",
+    "<TOKEN>",
+    "<SECRET>",
+    "<PASSWORD>",
+    "REPLACE_ME",
+    "REPLACE-ME",
+    "CHANGEME",
+    "PLACEHOLDER",
+}
+
+SIMPLE_SECRET_ASSIGNMENT = re.compile(
+    r"(?im)^[ \t]*"
+    r"(?:DISCORD_TOKEN|PASSWORD|API_KEY|SECRET)"
+    r"[ \t]*=[ \t]*"
+    r"([^#\r\n]*)$"
 )
 
 
-def tracked() -> list[str]:
+def tracked_files() -> list[str]:
     return subprocess.check_output(
         ["git", "ls-files"],
         text=True,
     ).splitlines()
 
 
-def main() -> int:
-    files = set(tracked())
-    problems = []
+def looks_like_shell_or_source(path: Path) -> bool:
+    if path.suffix in {
+        ".py",
+        ".sh",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+    }:
+        return True
 
-    for name in sorted(files & FORBIDDEN):
+    return path.name in {
+        "Makefile",
+    }
+
+
+def main() -> int:
+    files = set(tracked_files())
+    problems: list[str] = []
+
+    for name in sorted(
+        files & FORBIDDEN_TRACKED
+    ):
         problems.append(
-            f"{name}: private file is tracked"
+            f"{name}: private runtime file is tracked"
         )
 
     for name in sorted(files):
@@ -86,7 +140,7 @@ def main() -> int:
         if not path.is_file():
             continue
 
-        if path.suffix.lower() in SKIP:
+        if path.suffix.lower() in SKIP_SUFFIXES:
             continue
 
         try:
@@ -102,13 +156,16 @@ def main() -> int:
                     f"{name}: possible {label}"
                 )
 
-        for match in ENV_SECRET.finditer(text):
-            value = match.group(1).strip("\"'")
+        if not looks_like_shell_or_source(path):
+            for match in SIMPLE_SECRET_ASSIGNMENT.finditer(
+                text
+            ):
+                value = match.group(1).strip().strip("\"'")
 
-            if value:
-                problems.append(
-                    f"{name}: possible secret value"
-                )
+                if value.upper() not in PLACEHOLDERS:
+                    problems.append(
+                        f"{name}: possible secret assignment"
+                    )
 
     if problems:
         print("Repository safety check FAILED.")
@@ -116,6 +173,11 @@ def main() -> int:
 
         for problem in sorted(set(problems)):
             print(f"- {problem}")
+
+        print()
+        print(
+            "Remove or replace the flagged value before pushing."
+        )
 
         return 1
 
