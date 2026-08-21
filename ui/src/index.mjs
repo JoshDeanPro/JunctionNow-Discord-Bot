@@ -769,6 +769,18 @@ function Loading() {
 function Root({
   go
 }) {
+  const [daemon, setDaemon] = useState(null);
+
+  useEffect(() => {
+    bridge('daemon-status').then(setDaemon);
+  }, []);
+
+  if (!daemon) {
+    return h(Loading);
+  }
+
+  const botState = runtimeState(daemon);
+
   return h(
     Menu,
     {
@@ -791,7 +803,10 @@ function Root({
         },
         {
           id: 'manage-bot',
-          label: 'Manage Bot'
+          label: 'Manage Bot',
+          status: botState.symbol,
+          statusColor: botState.color,
+          description: botState.label
         },
         {
           id: 'storage',
@@ -808,6 +823,18 @@ function Root({
         })
     }
   );
+}
+
+function runtimeState(daemon) {
+  if (daemon.status === 'active') {
+    return {label: 'Enabled', symbol: '●', color: 'green'};
+  }
+
+  if (daemon.status === 'inactive') {
+    return {label: 'Inactive · expected to be running', symbol: '●', color: 'red'};
+  }
+
+  return {label: 'Disabled', symbol: '○', color: MUTED};
 }
 
 function Dashboard({
@@ -854,13 +881,10 @@ function Dashboard({
     return h(Loading);
   }
 
-  const daemon =
-    data.daemon?.running
-      ? 'Running'
-      : 'Stopped';
+  const botState = runtimeState(data.daemon);
 
   const rows = [
-    ['Daemon', daemon],
+    ['Bot', botState.label],
     [
       'Feed',
       data.feed_enabled
@@ -930,9 +954,8 @@ function Dashboard({
               Text,
               {
                 color:
-                  label === 'Daemon'
-                  && value === 'Stopped'
-                    ? 'red'
+                  label === 'Bot'
+                    ? botState.color
                     : undefined
               },
               String(value)
@@ -958,7 +981,8 @@ function ManageBot({
     return h(Loading);
   }
 
-  const enabled = daemon.running;
+  const botState = runtimeState(daemon);
+  const active = daemon.status === 'active';
 
   return h(
     Menu,
@@ -969,10 +993,10 @@ function ManageBot({
       items: [
         {
           id: 'runtime',
-          label: enabled ? 'Bot Enabled' : 'Bot Disabled',
-          status: enabled ? '●' : '○',
-          statusColor: enabled ? 'green' : MUTED,
-          action: enabled ? 'disable' : 'enable'
+          label: `Bot ${botState.label}`,
+          status: botState.symbol,
+          statusColor: botState.color,
+          action: active ? 'disable' : 'enable'
         },
         {id: 'configuration', label: 'Configuration'},
         {id: 'activity', label: 'Logs'},

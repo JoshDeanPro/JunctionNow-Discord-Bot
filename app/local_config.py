@@ -14,9 +14,11 @@ def configured() -> dict:
     guild_id = values.get("MANAGEMENT_GUILD_ID", "")
     channel_id = values.get("MANAGEMENT_CHANNEL_ID", "")
     webhook = values.get("PHOTO_WEBHOOK_URL", "")
+    bot_enabled = values.get("BOT_ENABLED", "1") == "1"
 
     return {
         "token_configured": bool(values.get("DISCORD_TOKEN")),
+        "bot_enabled": bot_enabled,
         "application_id": values.get("DISCORD_APPLICATION_ID", ""),
         "photo_guild_id": guild_id,
         "photo_channel_id": channel_id,
@@ -62,6 +64,7 @@ def save_value(name: str, value: str) -> None:
         "STATE_MAX_POSTS",
         "STATE_MAX_EVENTS",
         "STATE_BACKUP_COUNT",
+        "BOT_ENABLED",
     }
 
     if name not in allowed:
@@ -87,6 +90,9 @@ def save_value(name: str, value: str) -> None:
 
     if name == "SYNC_INTERVAL_SECONDS" and not 1800 <= int(value) <= 86400:
         raise ValueError("Choose an interval from 30 minutes to 24 hours.")
+
+    if name == "BOT_ENABLED" and value not in {"0", "1"}:
+        raise ValueError("Bot state must be enabled or disabled.")
 
     limits = {
         "STATE_MAX_POSTS": (100, 5000),

@@ -24,6 +24,7 @@
 - Added Storage feature usage, backend status, and preferences views without adding database drivers.
 - Added safe local cleanup and private JSON snapshot actions under Storage Maintenance.
 - Moved bot enable/disable state into Manage Bot as one state-aware control.
+- Made bot state visible on the main menu with green, gray, and red meanings.
 - Moved scheduling and bounded data retention into Feature Settings.
 - Added explicit Broadcast delivery timing: now or with the next post batch.
 - Moved private Discord setup into `jnbot` and removed separate token scripts.

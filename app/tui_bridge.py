@@ -77,9 +77,13 @@ def daemon_pid() -> int | None:
 
 def daemon_status() -> dict:
     pid = daemon_pid()
+    enabled = configured()["bot_enabled"]
+    running = bool(pid)
 
     return {
-        "running": bool(pid),
+        "running": running,
+        "enabled": enabled,
+        "status": "active" if running else "inactive" if enabled else "disabled",
         "pid": pid,
     }
 
@@ -88,6 +92,7 @@ def daemon_start() -> dict:
     current = daemon_pid()
 
     if current:
+        save_value("BOT_ENABLED", "1")
         return {
             "running": True,
             "pid": current,
@@ -116,6 +121,8 @@ def daemon_start() -> dict:
     if process.poll() is not None:
         raise RuntimeError("The bot stopped during startup. Check the bot log.")
 
+    save_value("BOT_ENABLED", "1")
+
     return {
         "running": True,
         "pid": process.pid,
@@ -124,6 +131,7 @@ def daemon_start() -> dict:
 
 def daemon_stop() -> dict:
     pid = daemon_pid()
+    save_value("BOT_ENABLED", "0")
 
     if not pid:
         return {

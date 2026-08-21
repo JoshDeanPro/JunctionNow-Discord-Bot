@@ -89,3 +89,15 @@ def test_retention_preferences_are_bounded_and_saved(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="outside the supported range"):
         local_config.save_value("STATE_BACKUP_COUNT", "0")
+
+
+def test_bot_enabled_state_is_private_and_explicit(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")
+
+    assert local_config.configured()["bot_enabled"] is True
+
+    local_config.save_value("BOT_ENABLED", "0")
+    assert local_config.configured()["bot_enabled"] is False
+
+    with pytest.raises(ValueError, match="enabled or disabled"):
+        local_config.save_value("BOT_ENABLED", "2")
