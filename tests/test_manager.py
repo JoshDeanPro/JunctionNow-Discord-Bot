@@ -20,26 +20,38 @@ def test_invite_uses_only_required_permissions(monkeypatch):
     assert "Manage Server" not in invite["permissions"]
 
 
-def test_manager_uninstall_only_removes_its_own_link(tmp_path, monkeypatch):
-    project = tmp_path / "project"
+def test_manager_uninstall_removes_command_and_project(tmp_path, monkeypatch):
+    project = tmp_path / "JunctionNow-Discord-Bot"
     command = project / "bin" / "jnbot"
     command.parent.mkdir(parents=True)
     command.write_text("#!/bin/sh\n", encoding="utf-8")
+    (project / ".git").mkdir()
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "junctionnow-discord-bot"\n', encoding="utf-8"
+    )
     installed = tmp_path / "bin" / "jnbot"
     installed.parent.mkdir()
     installed.symlink_to(command)
 
     monkeypatch.setattr(tui_bridge, "ROOT", project)
     monkeypatch.setattr(tui_bridge, "INSTALLED_COMMAND", installed)
+    monkeypatch.setattr(tui_bridge, "daemon_pid", lambda: None)
+    monkeypatch.setattr(tui_bridge, "daemon_stop", lambda: {"running": False})
 
-    assert tui_bridge.uninstall_manager() == {"installed": False}
+    assert tui_bridge.uninstall_manager() == {"installed": False, "removed": True}
     assert not installed.exists()
-    assert command.exists()
+    assert not project.exists()
 
 
 def test_manager_uninstall_preserves_unrelated_command(tmp_path, monkeypatch):
+    project = tmp_path / "JunctionNow-Discord-Bot"
+    (project / ".git").mkdir(parents=True)
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "junctionnow-discord-bot"\n', encoding="utf-8"
+    )
     installed = tmp_path / "jnbot"
     installed.write_text("unrelated", encoding="utf-8")
+    monkeypatch.setattr(tui_bridge, "ROOT", project)
     monkeypatch.setattr(tui_bridge, "INSTALLED_COMMAND", installed)
 
     with pytest.raises(RuntimeError, match="not managed"):

@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -188,16 +190,61 @@ def invite_link() -> dict:
 
 
 def uninstall_manager() -> dict:
+    manifest = ROOT / "pyproject.toml"
+
+    if ROOT.name != "JunctionNow-Discord-Bot" or not (ROOT / ".git").is_dir():
+        raise RuntimeError("The JunctionNow installation location could not be verified.")
+
+    with manifest.open("rb") as handle:
+        project_name = tomllib.load(handle).get("project", {}).get("name")
+
+    if project_name != "junctionnow-discord-bot":
+        raise RuntimeError("The JunctionNow installation could not be verified.")
+
     expected = (ROOT / "bin" / "jnbot").resolve()
 
-    if INSTALLED_COMMAND.is_symlink() and INSTALLED_COMMAND.resolve() == expected:
-        INSTALLED_COMMAND.unlink()
-        return {"installed": False}
-
     if INSTALLED_COMMAND.exists() or INSTALLED_COMMAND.is_symlink():
-        raise RuntimeError("The installed jnbot command is not managed by this project.")
+        if not INSTALLED_COMMAND.is_symlink() or INSTALLED_COMMAND.resolve() != expected:
+            raise RuntimeError("The installed jnbot command is not managed by this project.")
 
-    return {"installed": False}
+    service = Path("/etc/systemd/system/junctionnow-discord.service")
+
+    if service.exists() and os.geteuid() != 0:
+        raise RuntimeError("Run jnbot as root to remove the installed system service.")
+
+    pid = daemon_pid()
+    daemon_stop()
+
+    if pid:
+        for _ in range(50):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.kill(pid, signal.SIGKILL)
+
+    if service.exists():
+        subprocess.run(
+            ["systemctl", "disable", "--now", "junctionnow-discord.service"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        service.unlink()
+        subprocess.run(
+            ["systemctl", "daemon-reload"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    if INSTALLED_COMMAND.is_symlink():
+        INSTALLED_COMMAND.unlink()
+
+    shutil.rmtree(ROOT)
+    return {"installed": False, "removed": True}
 
 
 async def async_main(

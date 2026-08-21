@@ -2205,6 +2205,7 @@ function Updates({
 }
 
 function App() {
+  const {exit} = useApp();
   const [stack, setStack] =
     useState([
       {
@@ -2451,12 +2452,16 @@ function App() {
       {
         title: 'Uninstall Bot Manager',
         message:
-          'Remove the local jnbot command? Bot data and private settings stay in place.',
+          'Stop the bot and permanently remove the manager, private settings, and local data?',
         back,
         confirm:
           async () => {
-            await bridge('manager-uninstall');
-            done('Bot Manager command removed. This open session will keep working.');
+            try {
+              await bridge('manager-uninstall');
+              exit();
+            } catch (error) {
+              done(error.message);
+            }
           }
       }
     );
