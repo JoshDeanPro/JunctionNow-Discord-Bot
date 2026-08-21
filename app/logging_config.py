@@ -49,3 +49,7 @@ def configure_logging() -> None:
     logging.getLogger(
         "discord.gateway"
     ).setLevel(logging.WARNING)
+
+    logging.getLogger(
+        "discord.client"
+    ).setLevel(logging.ERROR)

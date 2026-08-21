@@ -68,3 +68,42 @@ def test_update_rejects_different_github_repository(monkeypatch):
 
     with pytest.raises(RuntimeError, match="not the JunctionNow repository"):
         updates.verify_repository()
+
+
+def test_failed_update_restores_code_and_runtime_dependencies(monkeypatch):
+    monkeypatch.setattr(
+        updates,
+        "update_status",
+        lambda **kwargs: {
+            "update_available": True,
+            "fast_forward": True,
+        },
+    )
+    run_calls = []
+
+    def fake_run(*args, **kwargs):
+        run_calls.append(args)
+
+        if args == ("git", "status", "--porcelain", "--untracked-files=no"):
+            return ""
+        if args == ("git", "rev-parse", "HEAD"):
+            return "a" * 40
+        if args[:3] == (str(updates.ROOT / ".venv/bin/python"), "-m", "pip"):
+            raise RuntimeError("install failed")
+        return ""
+
+    subprocess_calls = []
+
+    def fake_subprocess(command, **kwargs):
+        subprocess_calls.append(tuple(command))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(updates, "run", fake_run)
+    monkeypatch.setattr(updates.subprocess, "run", fake_subprocess)
+
+    with pytest.raises(RuntimeError, match="was rolled back"):
+        updates.install_update()
+
+    assert ("git", "reset", "--hard", "a" * 40) in subprocess_calls
+    assert any(call[-3:] == ("install", "-e", ".") for call in subprocess_calls)
+    assert ("npm", "--prefix", "ui", "ci", "--omit=dev") in subprocess_calls

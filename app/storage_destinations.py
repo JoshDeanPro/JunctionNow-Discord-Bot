@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import subprocess
+import sys
 import tempfile
 import uuid
 from datetime import UTC, datetime
@@ -11,6 +13,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_FILE = ROOT / "private" / "storage.json"
 FEATURES = {"servers", "posts", "deliveries", "photos", "broadcasts", "activity"}
+
+
+def ensure_driver(kind: str) -> None:
+    module = "asyncmy" if kind == "mysql" else "psycopg"
+
+    try:
+        __import__(module)
+        return
+    except ImportError:
+        pass
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", f"{ROOT}[{kind}]"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode:
+        raise RuntimeError(f"The {kind} storage driver could not be installed.")
 
 
 def load_destinations() -> list[dict]:
@@ -162,6 +184,8 @@ async def add_destination(data: dict, state: dict) -> dict:
 
     if kind not in {"mysql", "postgresql"} or not features:
         raise ValueError("Choose a database type and at least one feature.")
+
+    ensure_driver(kind)
 
     destination = {
         "id": uuid.uuid4().hex[:12],

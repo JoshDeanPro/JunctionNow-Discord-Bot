@@ -686,13 +686,20 @@ function Confirm({
   confirm,
   back
 }) {
+  const [pending, setPending] = useState(false);
+
   useInput(
     (input, key) => {
+      if (pending) {
+        return;
+      }
+
       if (
         input.toLowerCase()
         === 'y'
       ) {
-        confirm();
+        setPending(true);
+        Promise.resolve(confirm()).catch(() => setPending(false));
         return;
       }
 
@@ -713,7 +720,7 @@ function Confirm({
       footer: h(
         Box,
         {marginTop: 1},
-        h(Text, {color: DIM}, 'y confirm   n/esc cancel')
+        h(Text, {color: DIM}, pending ? 'Working…' : 'y confirm   n/esc cancel')
       )
     },
     h(Text, {color: 'yellow'}, message)
@@ -738,6 +745,7 @@ function Root({
   go
 }) {
   const [data, setData] = useState(null);
+  const [openedSetup, setOpenedSetup] = useState(false);
 
   useEffect(() => {
     Promise.all([bridge('daemon-status'), bridge('config-status')]).then(
@@ -745,12 +753,26 @@ function Root({
     );
   }, []);
 
+  const setupNeeded = Boolean(
+    data && (!data.config.token_configured || !data.config.application_id)
+  );
+
+  useEffect(() => {
+    if (setupNeeded && !openedSetup) {
+      setOpenedSetup(true);
+      go({
+        name: 'setup-value',
+        setting: data.config.token_configured ? 'application' : 'token',
+        firstRun: true
+      });
+    }
+  }, [setupNeeded, openedSetup]);
+
   if (!data) {
     return h(Loading);
   }
 
   const botState = runtimeState(data.daemon);
-  const setupNeeded = !data.config.token_configured || !data.config.application_id;
 
   return h(
     Menu,
@@ -1548,6 +1570,40 @@ function Setup({
         })
     }
   );
+}
+
+function FirstRunOptions({go, back}) {
+  return h(Menu, {
+    title: 'Setup Complete',
+    subtitle: 'Choose what to do next.',
+    back,
+    items: [
+      {id: 'start', label: 'Enable Bot', state: 'Recommended', stateColor: 'green'},
+      {id: 'invite-copy', label: 'Copy Invite Link'},
+      {id: 'posts-settings', label: 'Posts Settings'},
+      {id: 'photo-setup', label: 'Photo Destination'},
+      {id: 'finish', label: 'Finish for Now'}
+    ],
+    select: async item => {
+      if (item.id === 'start') {
+        try {
+          await bridge('daemon-start');
+          go({name: 'message', title: 'Setup Complete', message: 'The bot is enabled.'});
+        } catch (error) {
+          go({name: 'message', title: 'Setup Error', message: error.message});
+        }
+        return;
+      }
+
+      if (item.id === 'photo-setup') {
+        const config = await bridge('config-status');
+        go({name: 'photo-setup', config});
+        return;
+      }
+
+      go(item.id === 'finish' ? {name: 'root'} : {name: item.id});
+    }
+  });
 }
 
 function PhotoSetup({
@@ -2572,6 +2628,16 @@ function App() {
                 }
               );
 
+              if (screen.firstRun && screen.setting === 'token') {
+                go({name: 'setup-value', setting: 'application', firstRun: true});
+                return;
+              }
+
+              if (screen.firstRun && screen.setting === 'application') {
+                go({name: 'first-run-options'});
+                return;
+              }
+
               done(
                 screen.setting === 'token'
                 || screen.setting === 'application'
@@ -2586,6 +2652,10 @@ function App() {
           }
       }
     );
+  }
+
+  if (screen.name === 'first-run-options') {
+    return h(FirstRunOptions, {go, back});
   }
 
   if (
@@ -3113,9 +3183,7 @@ function App() {
                 );
               }
 
-              done(
-                `Bot ${action}d.`
-              );
+              back();
 
             } catch (error) {
               done(

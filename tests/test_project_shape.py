@@ -22,7 +22,6 @@ def test_dependencies_are_lightweight():
         "uvicorn",
         "sqlalchemy",
         "asyncpg",
-        "postgres",
         "redis",
     )
 

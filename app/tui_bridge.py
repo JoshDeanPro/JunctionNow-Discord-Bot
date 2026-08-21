@@ -16,6 +16,7 @@ from pathlib import Path
 import discord
 
 from app.control import enqueue
+from app.file_lock import exclusive_file_lock
 from app.local_config import clear_photo_destination, configured, save_value
 from app.storage import JsonStateStore
 from app.storage_destinations import (
@@ -28,10 +29,22 @@ from app.updates import install_update, update_status
 
 ROOT = Path(__file__).resolve().parents[1]
 PID_FILE = ROOT / "data" / "junctionnow.pid"
-INSTALLED_COMMAND = (
-    Path.home() / ".junctionnow" / "bin" / "jnbot.cmd"
-    if os.name == "nt"
-    else Path.home() / ".local" / "bin" / "jnbot"
+LIFECYCLE_LOCK = ROOT / "data" / "daemon.lock"
+INSTALL_ROOT = Path(
+    os.environ.get(
+        "JNBOT_INSTALL_ROOT",
+        Path(os.environ.get("LOCALAPPDATA", Path.home())) / "JunctionNow"
+        if os.name == "nt"
+        else Path.home() / ".local" / "share" / "junctionnow",
+    )
+)
+INSTALLED_COMMAND = Path(
+    os.environ.get(
+        "JNBOT_COMMAND_PATH",
+        Path.home() / ".junctionnow" / "bin" / "jnbot.cmd"
+        if os.name == "nt"
+        else Path.home() / ".local" / "bin" / "jnbot",
+    )
 )
 
 
@@ -101,63 +114,73 @@ def daemon_status() -> dict:
 
 
 def daemon_start() -> dict:
-    current = daemon_pid()
+    with exclusive_file_lock(LIFECYCLE_LOCK):
+        current = daemon_pid()
 
-    if current:
-        save_value("BOT_ENABLED", "1")
-        return {
-            "running": True,
-            "pid": current,
-        }
+        if current:
+            save_value("BOT_ENABLED", "1")
+            return {
+                "running": True,
+                "pid": current,
+            }
 
-    process = subprocess.Popen(
-        [
-            str(
-                ROOT
-                / ".venv"
-                / "bin"
-                / "python"
-            ),
-            "-m",
-            "app.main",
-        ],
-        cwd=ROOT,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+        process = subprocess.Popen(
+            [
+                str(
+                    ROOT
+                    / ".venv"
+                    / "bin"
+                    / "python"
+                ),
+                "-m",
+                "app.main",
+            ],
+            cwd=ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 
-    time.sleep(1)
+        for _ in range(50):
+            if process.poll() is not None:
+                raise RuntimeError("The bot stopped during startup. Check the bot log.")
 
-    if process.poll() is not None:
-        raise RuntimeError("The bot stopped during startup. Check the bot log.")
+            if daemon_pid() == process.pid:
+                save_value("BOT_ENABLED", "1")
+                return {
+                    "running": True,
+                    "pid": process.pid,
+                }
 
-    save_value("BOT_ENABLED", "1")
+            time.sleep(0.1)
 
-    return {
-        "running": True,
-        "pid": process.pid,
-    }
+        process.terminate()
+        raise RuntimeError("The bot did not finish starting. Check the bot log.")
 
 
 def daemon_stop() -> dict:
-    pid = daemon_pid()
-    save_value("BOT_ENABLED", "0")
+    with exclusive_file_lock(LIFECYCLE_LOCK):
+        pid = daemon_pid()
+        save_value("BOT_ENABLED", "0")
 
-    if not pid:
-        return {
-            "running": False,
-        }
+        if not pid:
+            return {
+                "running": False,
+            }
 
-    os.kill(
-        pid,
-        signal.SIGTERM,
-    )
+        os.kill(
+            pid,
+            signal.SIGTERM,
+        )
 
-    return {
-        "running": False,
-    }
+        for _ in range(50):
+            if daemon_pid() is None:
+                return {"running": False}
+            time.sleep(0.1)
+
+        os.kill(pid, signal.SIGKILL)
+        return {"running": False}
 
 
 def invite_link() -> dict:
@@ -196,7 +219,7 @@ def invite_link() -> dict:
 def uninstall_manager() -> dict:
     manifest = ROOT / "pyproject.toml"
 
-    if ROOT.name != "JunctionNow-Discord-Bot" or not (ROOT / ".git").is_dir():
+    if ROOT.resolve() != INSTALL_ROOT.resolve() or not (ROOT / ".git").is_dir():
         raise RuntimeError("The JunctionNow installation location could not be verified.")
 
     with manifest.open("rb") as handle:

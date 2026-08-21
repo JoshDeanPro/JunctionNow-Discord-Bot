@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import fcntl
 import json
 import os
 import shutil
@@ -14,6 +13,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from app.config import get_settings
+from app.file_lock import exclusive_file_lock
 
 T = TypeVar("T")
 
@@ -66,24 +66,8 @@ class JsonStateStore:
 
     @contextmanager
     def _process_lock(self):
-        self.process_lock_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        with self.process_lock_path.open("a+") as handle:
-            fcntl.flock(
-                handle.fileno(),
-                fcntl.LOCK_EX,
-            )
-
-            try:
-                yield
-            finally:
-                fcntl.flock(
-                    handle.fileno(),
-                    fcntl.LOCK_UN,
-                )
+        with exclusive_file_lock(self.process_lock_path):
+            yield
 
     async def initialize(self) -> None:
         async with self.lock:

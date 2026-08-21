@@ -34,6 +34,7 @@ def test_manager_uninstall_removes_command_and_project(tmp_path, monkeypatch):
     installed.symlink_to(command)
 
     monkeypatch.setattr(tui_bridge, "ROOT", project)
+    monkeypatch.setattr(tui_bridge, "INSTALL_ROOT", project)
     monkeypatch.setattr(tui_bridge, "INSTALLED_COMMAND", installed)
     monkeypatch.setattr(tui_bridge, "daemon_pid", lambda: None)
     monkeypatch.setattr(tui_bridge, "daemon_stop", lambda: {"running": False})
@@ -52,6 +53,7 @@ def test_manager_uninstall_preserves_unrelated_command(tmp_path, monkeypatch):
     installed = tmp_path / "jnbot"
     installed.write_text("unrelated", encoding="utf-8")
     monkeypatch.setattr(tui_bridge, "ROOT", project)
+    monkeypatch.setattr(tui_bridge, "INSTALL_ROOT", project)
     monkeypatch.setattr(tui_bridge, "INSTALLED_COMMAND", installed)
 
     with pytest.raises(RuntimeError, match="not managed"):
@@ -61,9 +63,28 @@ def test_manager_uninstall_preserves_unrelated_command(tmp_path, monkeypatch):
 
 
 def test_manager_self_install_does_not_overwrite_existing_command():
-    text = Path("bin/jnbot").read_text(encoding="utf-8")
+    text = Path("scripts/install.sh").read_text(encoding="utf-8")
 
-    assert '[ ! -e "$INSTALLED" ] && [ ! -L "$INSTALLED" ]' in text
-    assert 'ln -s "$ROOT/bin/jnbot" "$INSTALLED"' in text
+    assert 'APP_ROOT="${JNBOT_INSTALL_ROOT:-$HOME/.local/share/junctionnow}"' in text
+    assert 'ln -s "$APP_ROOT/bin/jnbot" "$COMMAND_PATH"' in text
+    assert "managed by another application" in text
     assert "python3.12 -m venv" in text
-    assert 'npm --prefix "$ROOT/ui" ci --silent' in text
+    assert 'pip install --quiet -e "$APP_ROOT"' in text
+    assert 'npm --prefix "$APP_ROOT/ui" ci --omit=dev --silent' in text
+    assert '"$APP_ROOT[dev]"' not in text
+
+
+def test_starting_an_active_bot_does_not_spawn_another_process(tmp_path, monkeypatch):
+    saved = []
+    monkeypatch.setattr(tui_bridge, "LIFECYCLE_LOCK", tmp_path / "daemon.lock")
+    monkeypatch.setattr(tui_bridge, "daemon_pid", lambda: 12345)
+    monkeypatch.setattr(tui_bridge, "save_value", lambda name, value: saved.append((name, value)))
+
+    class UnexpectedProcess:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("A second bot process was started")
+
+    monkeypatch.setattr(tui_bridge.subprocess, "Popen", UnexpectedProcess)
+
+    assert tui_bridge.daemon_start() == {"running": True, "pid": 12345}
+    assert saved == [("BOT_ENABLED", "1")]

@@ -81,20 +81,18 @@ immediately and take effect after the bot restarts.
 
 Requirements are Python 3.12 and Node 22.
 
-Fresh install on macOS or Linux:
+One-shot install on macOS or Linux:
 
-    gh repo clone JoshDeanPro/JunctionNow-Discord-Bot ~/JunctionNow-Discord-Bot && ~/JunctionNow-Discord-Bot/bin/jnbot
+    bash <(gh api -H "Accept: application/vnd.github.raw+json" repos/JoshDeanPro/JunctionNow-Discord-Bot/contents/scripts/install.sh)
 
-If the repository is already cloned, run:
+One-shot install on Windows PowerShell:
 
-    ~/JunctionNow-Discord-Bot/bin/jnbot
+    $i=New-TemporaryFile; gh api -H "Accept: application/vnd.github.raw+json" repos/JoshDeanPro/JunctionNow-Discord-Bot/contents/scripts/install.ps1 > $i; & $i; Remove-Item $i
 
-On Windows PowerShell, run:
-
-    & "$HOME\JunctionNow-Discord-Bot\scripts\install.ps1"
-
-The first run installs local dependencies and the `jnbot` command, then opens
-Initial Setup. Later runs use `jnbot` directly.
+The installer creates a separate runtime under the user profile, installs only
+runtime dependencies, adds the `jnbot` command, and opens Initial Setup. A
+development clone is never used as the installed application. Later runs use
+`jnbot` directly.
 
 The installer checks for Python 3.12 and Node 22 or newer first. If either is
 missing, install it with one of these commands, then run the installer again:

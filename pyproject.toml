@@ -9,11 +9,11 @@ dependencies = [
     "feedparser>=6.0,<7",
     "httpx>=0.28,<1",
     "selectolax>=0.4,<1",
-    "asyncmy>=0.2.14,<0.3",
-    "psycopg[binary]>=3.3.4,<4",
 ]
 
 [project.optional-dependencies]
+mysql = ["asyncmy>=0.2.14,<0.3"]
+postgresql = ["psycopg[binary]>=3.3.4,<4"]
 dev = [
     "pytest>=8,<9",
     "pytest-asyncio>=1,<2",

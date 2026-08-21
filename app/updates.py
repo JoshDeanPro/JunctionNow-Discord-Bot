@@ -81,11 +81,10 @@ def install_update() -> dict:
     run("git", "merge", "--ff-only", "origin/main")
 
     checks = (
-        (str(ROOT / ".venv/bin/python"), "-m", "pip", "install", "-e", ".[dev]"),
-        ("npm", "--prefix", "ui", "ci"),
+        (str(ROOT / ".venv/bin/python"), "-m", "pip", "install", "-e", "."),
+        ("npm", "--prefix", "ui", "ci", "--omit=dev"),
         (str(ROOT / ".venv/bin/python"), "scripts/check_repo_safety.py"),
-        (str(ROOT / ".venv/bin/ruff"), "check", "app", "tests", "scripts"),
-        (str(ROOT / ".venv/bin/python"), "-m", "pytest", "-q"),
+        (str(ROOT / ".venv/bin/python"), "-m", "compileall", "-q", "app", "scripts"),
         ("npm", "--prefix", "ui", "run", "check"),
     )
 
@@ -101,7 +100,24 @@ def install_update() -> dict:
             check=False,
         )
 
-        if rollback.returncode:
+        dependencies_restored = rollback.returncode == 0
+
+        if dependencies_restored:
+            for command in (
+                (str(ROOT / ".venv/bin/python"), "-m", "pip", "install", "-e", "."),
+                ("npm", "--prefix", "ui", "ci", "--omit=dev"),
+            ):
+                if subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                ).returncode:
+                    dependencies_restored = False
+                    break
+
+        if not dependencies_restored:
             raise RuntimeError(f"Update failed and rollback failed: {exc}") from exc
 
         raise RuntimeError(f"Update failed and was rolled back: {exc}") from exc

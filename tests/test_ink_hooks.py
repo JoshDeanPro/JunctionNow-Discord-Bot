@@ -86,6 +86,16 @@ def test_photo_controls_have_one_clear_hierarchy():
     assert "label: 'Clear All'" in text
     assert "Default · JSON" in text
     assert "item.status === 'inactive'" in text
+
+
+def test_first_run_and_bot_enable_return_paths_are_clear():
+    text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
+
+    assert "setting: data.config.token_configured ? 'application' : 'token'" in text
+    assert "go({name: 'setup-value', setting: 'application', firstRun: true})" in text
+    assert "title: 'Setup Complete'" in text
+    assert "'daemon-start'" in text
+    assert "`Bot ${action}d.`" not in text
     assert "function runtimeState" in text
     assert "return {label: 'Inactive', color: 'red'}" in text
     assert "state: botState.label" in text

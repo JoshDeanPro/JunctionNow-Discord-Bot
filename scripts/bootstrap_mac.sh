@@ -17,8 +17,7 @@ pip install -e ".[dev]"
 ruff check app tests
 pytest -q
 npm --prefix ui ci
-./scripts/install_cli.sh
 
 echo
-echo "Bootstrap complete."
-echo "Run: jnbot"
+echo "Development environment ready."
+echo "Run: ./bin/jnbot"
