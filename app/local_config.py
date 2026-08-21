@@ -23,7 +23,6 @@ def configured() -> dict:
     return {
         "token_configured": bool(values.get("DISCORD_TOKEN")),
         "bot_enabled": bot_enabled,
-        "application_id": values.get("DISCORD_APPLICATION_ID", ""),
         "photo_guild_id": guild_id,
         "photo_channel_id": channel_id,
         "photo_webhook_configured": bool(webhook),
@@ -62,7 +61,6 @@ def read_values() -> dict[str, str]:
 def save_value(name: str, value: str) -> None:
     allowed = {
         "DISCORD_TOKEN",
-        "DISCORD_APPLICATION_ID",
         "MANAGEMENT_GUILD_ID",
         "MANAGEMENT_CHANNEL_ID",
         "PHOTO_WEBHOOK_URL",
@@ -84,7 +82,6 @@ def save_value(name: str, value: str) -> None:
         raise ValueError("The value cannot be empty.")
 
     numeric = {
-        "DISCORD_APPLICATION_ID",
         "MANAGEMENT_GUILD_ID",
         "MANAGEMENT_CHANNEL_ID",
         "SYNC_INTERVAL_SECONDS",

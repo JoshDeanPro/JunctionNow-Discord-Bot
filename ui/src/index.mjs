@@ -590,6 +590,7 @@ function LineInput({
   help,
   initial = '',
   secret = false,
+  skip = false,
   submit,
   back
 }) {
@@ -647,7 +648,7 @@ function LineInput({
       footer: h(
         Box,
         {marginTop: 1},
-        h(Text, {color: DIM}, 'enter save   esc cancel')
+        h(Text, {color: DIM}, skip ? 'enter save   esc skip for now' : 'enter save   esc cancel')
       )
     },
     h(
@@ -754,7 +755,7 @@ function Root({
   }, []);
 
   const setupNeeded = Boolean(
-    data && (!data.config.token_configured || !data.config.application_id)
+    data && !data.config.token_configured
   );
 
   useEffect(() => {
@@ -762,7 +763,7 @@ function Root({
       setOpenedSetup(true);
       go({
         name: 'setup-value',
-        setting: data.config.token_configured ? 'application' : 'token',
+        setting: 'token',
         firstRun: true
       });
     }
@@ -1554,12 +1555,6 @@ function Setup({
           label: 'Discord Token',
           state: data.token_configured ? 'Configured' : 'Required',
           stateColor: data.token_configured ? 'green' : 'yellow'
-        },
-        {
-          id: 'application',
-          label: 'Application ID',
-          state: data.application_id || 'Required',
-          stateColor: data.application_id ? MUTED : 'yellow'
         }
       ],
       select:
@@ -1572,12 +1567,14 @@ function Setup({
   );
 }
 
-function FirstRunOptions({go, back}) {
+function FirstRunOptions({go, home, back}) {
   return h(Menu, {
     title: 'Setup Complete',
     subtitle: 'Choose what to do next.',
     back,
     items: [
+      {id: 'token', label: 'Discord Token', state: 'Verified', stateColor: 'green'},
+      {id: 'setup-space', spacer: true},
       {id: 'start', label: 'Enable Bot', state: 'Recommended', stateColor: 'green'},
       {id: 'invite-copy', label: 'Copy Invite Link'},
       {id: 'posts-settings', label: 'Posts Settings'},
@@ -1588,10 +1585,15 @@ function FirstRunOptions({go, back}) {
       if (item.id === 'start') {
         try {
           await bridge('daemon-start');
-          go({name: 'message', title: 'Setup Complete', message: 'The bot is enabled.'});
+          home();
         } catch (error) {
           go({name: 'message', title: 'Setup Error', message: error.message});
         }
+        return;
+      }
+
+      if (item.id === 'token') {
+        go({name: 'setup-value', setting: 'token'});
         return;
       }
 
@@ -2293,6 +2295,8 @@ function App() {
           : current
     );
 
+  const home = () => setStack([{name: 'root'}]);
+
   const done = message =>
     go({
       name: 'message',
@@ -2580,12 +2584,6 @@ function App() {
         name: 'DISCORD_TOKEN',
         secret: true
       },
-      application: {
-        title: 'Application ID',
-        help: 'Enter the Discord application ID.',
-        name: 'DISCORD_APPLICATION_ID',
-        secret: false
-      },
       'photo-server': {
         title: 'Photo destination server ID',
         help: 'A channel ID is also required.',
@@ -2613,9 +2611,11 @@ function App() {
     return h(
       LineInput,
       {
+        key: screen.setting,
         title: setting.title,
         help: setting.help,
         secret: setting.secret,
+        skip: Boolean(screen.firstRun),
         back,
         submit:
           async value => {
@@ -2629,18 +2629,12 @@ function App() {
               );
 
               if (screen.firstRun && screen.setting === 'token') {
-                go({name: 'setup-value', setting: 'application', firstRun: true});
-                return;
-              }
-
-              if (screen.firstRun && screen.setting === 'application') {
                 go({name: 'first-run-options'});
                 return;
               }
 
               done(
                 screen.setting === 'token'
-                || screen.setting === 'application'
                   ? `${setting.title} saved. Restart the bot to apply it.`
                   : screen.setting === 'photo-webhook'
                     ? `${setting.title} saved and active.`
@@ -2655,7 +2649,7 @@ function App() {
   }
 
   if (screen.name === 'first-run-options') {
-    return h(FirstRunOptions, {go, back});
+    return h(FirstRunOptions, {go, home, back});
   }
 
   if (

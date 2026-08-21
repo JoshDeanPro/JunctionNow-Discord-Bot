@@ -76,7 +76,6 @@ def _integer_list(name: str) -> tuple[int, ...]:
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
-    discord_application_id: int | None
 
     log_level: str
     log_file: str
@@ -109,9 +108,6 @@ def get_settings() -> Settings:
             "DISCORD_TOKEN",
             "",
         ).strip(),
-        discord_application_id=_optional_integer(
-            "DISCORD_APPLICATION_ID"
-        ),
         log_level=os.environ.get(
             "LOG_LEVEL",
             "INFO",

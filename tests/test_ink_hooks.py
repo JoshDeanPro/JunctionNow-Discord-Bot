@@ -91,8 +91,11 @@ def test_photo_controls_have_one_clear_hierarchy():
 def test_first_run_and_bot_enable_return_paths_are_clear():
     text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
 
-    assert "setting: data.config.token_configured ? 'application' : 'token'" in text
-    assert "go({name: 'setup-value', setting: 'application', firstRun: true})" in text
+    assert "data && !data.config.token_configured" in text
+    assert "key: screen.setting" in text
+    assert "label: 'Application ID'" not in text
+    assert "esc skip for now" in text
+    assert "home();" in text
     assert "title: 'Setup Complete'" in text
     assert "'daemon-start'" in text
     assert "`Bot ${action}d.`" not in text

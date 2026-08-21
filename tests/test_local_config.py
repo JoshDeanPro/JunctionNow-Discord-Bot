@@ -24,6 +24,9 @@ def test_private_settings_reject_unknown_names(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="cannot be changed"):
         local_config.save_value("UNSAFE_SETTING", "value")
 
+    with pytest.raises(ValueError, match="cannot be changed"):
+        local_config.save_value("DISCORD_APPLICATION_ID", "123")
+
 
 def test_photo_destination_requires_channel_or_webhook(tmp_path, monkeypatch):
     monkeypatch.setattr(local_config, "ENV_FILE", tmp_path / ".env")

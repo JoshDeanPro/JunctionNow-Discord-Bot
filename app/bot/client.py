@@ -49,7 +49,6 @@ class JunctionNowBot(commands.Bot):
         super().__init__(
             command_prefix=commands.when_mentioned,
             intents=intents,
-            application_id=self.settings.discord_application_id,
             allowed_mentions=discord.AllowedMentions.none(),
         )
 

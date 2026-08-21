@@ -8,9 +8,10 @@ from app import tui_bridge
 def test_invite_uses_only_required_permissions(monkeypatch):
     monkeypatch.setattr(
         tui_bridge,
-        "configured",
-        lambda: {"application_id": "123456789"},
+        "read_values",
+        lambda: {"DISCORD_TOKEN": "private-token"},
     )
+    monkeypatch.setattr(tui_bridge, "verify_bot_token", lambda token: "123456789")
 
     invite = tui_bridge.invite_link()
 
@@ -18,6 +19,31 @@ def test_invite_uses_only_required_permissions(monkeypatch):
     assert "bot" in invite["url"]
     assert "Administrator" not in invite["permissions"]
     assert "Manage Server" not in invite["permissions"]
+
+
+def test_invalid_bot_token_is_rejected_without_exposing_it(monkeypatch):
+    class Response:
+        status_code = 401
+
+    monkeypatch.setattr(tui_bridge.httpx, "get", lambda *args, **kwargs: Response())
+
+    with pytest.raises(ValueError, match="Discord rejected") as error:
+        tui_bridge.verify_bot_token("private-token")
+
+    assert "private-token" not in str(error.value)
+
+
+def test_token_save_verifies_without_storing_application_id(monkeypatch):
+    saved = []
+    monkeypatch.setattr(tui_bridge, "verify_bot_token", lambda token: "123456789")
+    monkeypatch.setattr(tui_bridge, "save_value", lambda name, value: saved.append((name, value)))
+    monkeypatch.setattr(tui_bridge, "payload", lambda: {"name": "DISCORD_TOKEN", "value": "token"})
+    monkeypatch.setattr(tui_bridge, "output", lambda data: None)
+    monkeypatch.setattr(tui_bridge.sys, "argv", ["tui_bridge.py", "config-set"])
+
+    tui_bridge.main()
+
+    assert saved == [("DISCORD_TOKEN", "token")]
 
 
 def test_manager_uninstall_removes_command_and_project(tmp_path, monkeypatch):

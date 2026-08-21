@@ -14,10 +14,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import discord
+import httpx
 
 from app.control import enqueue
 from app.file_lock import exclusive_file_lock
-from app.local_config import clear_photo_destination, configured, save_value
+from app.local_config import clear_photo_destination, configured, read_values, save_value
 from app.storage import JsonStateStore
 from app.storage_destinations import (
     add_destination,
@@ -184,10 +185,12 @@ def daemon_stop() -> dict:
 
 
 def invite_link() -> dict:
-    application_id = configured().get("application_id")
+    token = read_values().get("DISCORD_TOKEN", "")
 
-    if not application_id:
-        raise ValueError("Save the Discord Application ID in Bot Settings first.")
+    if not token:
+        raise ValueError("Save the Discord token in Bot Settings first.")
+
+    application_id = verify_bot_token(token)
 
     permissions = discord.Permissions.none()
     permissions.update(
@@ -214,6 +217,28 @@ def invite_link() -> dict:
             "Read Message History",
         ],
     }
+
+
+def verify_bot_token(token: str) -> str:
+    token = token.strip()
+
+    if not token:
+        raise ValueError("Enter the Discord bot token.")
+
+    try:
+        response = httpx.get(
+            "https://discord.com/api/v10/oauth2/applications/@me",
+            headers={"Authorization": f"Bot {token}"},
+            timeout=10,
+        )
+        if response.status_code in {401, 403}:
+            raise ValueError("Discord rejected that bot token. Try again.")
+        response.raise_for_status()
+        return str(response.json()["id"])
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+        if isinstance(exc, ValueError) and str(exc).startswith("Discord rejected"):
+            raise
+        raise RuntimeError("Discord could not verify the bot application.") from exc
 
 
 def uninstall_manager() -> dict:
@@ -668,7 +693,14 @@ def main() -> None:
 
         if command == "config-set":
             name = str(data.get("name", ""))
-            save_value(name, str(data.get("value", "")))
+            value = str(data.get("value", ""))
+
+            if name == "DISCORD_TOKEN":
+                verify_bot_token(value)
+                save_value("DISCORD_TOKEN", value)
+            else:
+                save_value(name, value)
+
             output({"saved": name})
             return
 
