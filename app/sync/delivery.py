@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import discord
 
+from app.photos import photo_view
 from app.sync.render import (
     build_embed,
     no_mentions,
@@ -180,6 +181,7 @@ class DeliveryService:
         source_hash: str,
         *,
         updated: bool = False,
+        photo_requested: bool = False,
     ) -> dict:
         channel_id = int(
             config["channel_id"]
@@ -207,6 +209,10 @@ class DeliveryService:
                 updated=updated,
             ),
             allowed_mentions=allowed,
+            view=photo_view(
+                self.bot,
+                photo_requested,
+            ),
         )
 
         return {
@@ -231,6 +237,8 @@ class DeliveryService:
         delivery: dict,
         post: FeedPost,
         source_hash: str,
+        *,
+        photo_requested: bool = False,
     ) -> tuple[
         dict,
         str,
@@ -249,6 +257,7 @@ class DeliveryService:
                     post,
                     source_hash,
                     updated=True,
+                    photo_requested=photo_requested,
                 )
             )
 
@@ -293,6 +302,7 @@ class DeliveryService:
                     post,
                     source_hash,
                     updated=True,
+                    photo_requested=photo_requested,
                 )
             )
 
@@ -311,6 +321,10 @@ class DeliveryService:
                 updated=True,
             ),
             allowed_mentions=no_mentions(),
+            view=photo_view(
+                self.bot,
+                photo_requested,
+            ),
         )
 
         updated_delivery = dict(

@@ -282,6 +282,12 @@ class SyncEngine:
                                         config,
                                         post,
                                         current_source_hash,
+                                        photo_requested=bool(
+                                            stored_record.get(
+                                                "photo_requested",
+                                                False,
+                                            )
+                                        ),
                                     )
                                 )
 
@@ -327,6 +333,12 @@ class SyncEngine:
                                     delivery,
                                     post,
                                     current_source_hash,
+                                    photo_requested=bool(
+                                        stored_record.get(
+                                            "photo_requested",
+                                            False,
+                                        )
+                                    ),
                                 )
                             )
 
