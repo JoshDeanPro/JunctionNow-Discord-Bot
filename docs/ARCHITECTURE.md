@@ -46,6 +46,8 @@ token, and no local server is required.
 Every sent JunctionNow post stores its Discord message ID.
 
 When the source fingerprint changes, the bot edits that same message.
+Unchanged posts do not cause Discord message lookups. Deleted messages reported
+by Discord are marked missing and recreated on the next applicable sync.
 
 ## Expansion
 

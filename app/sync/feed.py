@@ -339,6 +339,16 @@ class JunctionNowFeedClient:
             tree
         )
 
+        page_description = clean_description(
+            og_description or body
+        )
+
+        if og_title:
+            post.title = og_title
+
+        if page_description:
+            post.body = page_description
+
         if image_url:
             post.image_url = image_url
 

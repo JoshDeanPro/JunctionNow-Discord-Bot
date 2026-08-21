@@ -620,6 +620,10 @@ function Root({
           label: 'Dashboard'
         },
         {
+          id: 'setup',
+          label: 'Setup'
+        },
+        {
           id: 'servers',
           label: 'Servers'
         },
@@ -787,6 +791,63 @@ function Dashboard({
       )
     ),
     h(Footer)
+  );
+}
+
+function Setup({
+  go,
+  back
+}) {
+  const [data, setData] =
+    useState(null);
+
+  useEffect(
+    () => {
+      bridge('config-status')
+        .then(setData);
+    },
+    []
+  );
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  return h(
+    Menu,
+    {
+      title: 'Setup',
+      subtitle: 'Private local settings.',
+      back,
+      items: [
+        {
+          id: 'token',
+          label:
+            data.token_configured
+              ? 'Discord token: configured'
+              : 'Discord token: required'
+        },
+        {
+          id: 'application',
+          label:
+            data.application_id
+              ? `Application ID: ${data.application_id}`
+              : 'Application ID: required'
+        },
+        {
+          id: 'photo-destination',
+          label:
+            data.photo_destination_configured
+              ? 'Photo destination: configured'
+              : 'Photo destination: not configured'
+        }
+      ],
+      select:
+        item => go({
+          name: 'setup-value',
+          setting: item.id
+        })
+    }
   );
 }
 
@@ -1307,6 +1368,77 @@ function App() {
       Dashboard,
       {
         back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'setup'
+  ) {
+    return h(
+      Setup,
+      {
+        go,
+        back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'setup-value'
+  ) {
+    const settings = {
+      token: {
+        title: 'Discord token',
+        help: 'Paste the private bot token. It will not be shown.',
+        name: 'DISCORD_TOKEN',
+        secret: true
+      },
+      application: {
+        title: 'Application ID',
+        help: 'Enter the Discord application ID.',
+        name: 'DISCORD_APPLICATION_ID',
+        secret: false
+      },
+      'photo-destination': {
+        title: 'Photo destination server',
+        help: 'Enter the optional private Discord server ID.',
+        name: 'MANAGEMENT_GUILD_ID',
+        secret: false
+      }
+    };
+
+    const setting = settings[
+      screen.setting
+    ];
+
+    return h(
+      LineInput,
+      {
+        title: setting.title,
+        help: setting.help,
+        secret: setting.secret,
+        back,
+        submit:
+          async value => {
+            try {
+              await bridge(
+                'config-set',
+                {
+                  name: setting.name,
+                  value
+                }
+              );
+
+              done(
+                `${setting.title} saved. Restart the bot to apply it.`
+              );
+            } catch (error) {
+              done(error.message);
+            }
+          }
       }
     );
   }

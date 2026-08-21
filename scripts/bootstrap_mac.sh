@@ -14,15 +14,11 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
-if [ ! -f .env ]; then
-    cp .env.example .env
-    echo "Created .env from .env.example"
-fi
-
 ruff check app tests
 pytest -q
+npm --prefix ui ci
+./scripts/install_cli.sh
 
 echo
 echo "Bootstrap complete."
-echo "Activate: source .venv/bin/activate"
-echo "Run:      ./run.sh"
+echo "Run: jnbot"

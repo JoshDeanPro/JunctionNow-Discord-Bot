@@ -1,14 +1,13 @@
 from pathlib import Path
 
 
-def test_token_setter_uses_placeholder():
-    text = Path(
-        "scripts/set_token.sh"
-    ).read_text(
-        encoding="utf-8"
-    )
+def test_credentials_are_managed_by_jnbot_only():
+    assert not Path("scripts/set_token.sh").exists()
+    assert not Path("scripts/set_app_id.sh").exists()
 
-    assert "DISCORD_TOKEN=__TOKEN__" in text
+    text = Path("ui/src/index.mjs").read_text(encoding="utf-8")
+    assert "Discord token" in text
+    assert "secret: true" in text
 
 
 def test_style_guide_uses_generic_paths():

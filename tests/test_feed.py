@@ -1,8 +1,10 @@
 from app.sync.feed import (
+    JunctionNowFeedClient,
     canonicalize_url,
     clean_description,
     clean_html,
 )
+from app.sync.types import FeedPost
 
 
 def test_clean_html():
@@ -35,3 +37,36 @@ def test_tracking_query_removed():
         "https://junctionnow.com/story/"
         "?foo=bar"
     )
+
+
+async def test_article_metadata_updates_rendered_post():
+    class Response:
+        text = """
+            <meta property="og:title" content="Updated title">
+            <meta property="og:description" content="Updated summary.">
+            <article><div class="entry-content">Updated article body.</div></article>
+        """
+
+        def raise_for_status(self):
+            return None
+
+    class Client:
+        async def get(self, *args, **kwargs):
+            return Response()
+
+    post = FeedPost(
+        post_id="article",
+        title="Old title",
+        body="Old summary...",
+        url="https://junctionnow.com/article/",
+        image_url=None,
+        published_at=None,
+        rss_hash="rss",
+        page_hash=None,
+    )
+
+    await JunctionNowFeedClient().inspect_article(Client(), post)
+
+    assert post.title == "Updated title"
+    assert post.body == "Updated summary..."
+    assert post.page_hash

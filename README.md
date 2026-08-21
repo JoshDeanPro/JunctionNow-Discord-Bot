@@ -55,26 +55,17 @@ Create the Python environment:
     python3.12 -m venv .venv
     .venv/bin/pip install -e ".[dev]"
 
-Set the Discord token:
-
-    ./scripts/set_token.sh
-
-Set the Discord Application ID:
-
-    ./scripts/set_app_id.sh
-
-Run:
-
-    ./run.sh
-
 Install the local console:
 
     npm --prefix ui ci
     ./scripts/install_cli.sh
 
+Run `jnbot`, open **Setup**, and save the Discord token and Application ID.
+Then open **Bot** and start the daemon.
+
 ## Production
 
-The bot runs as one Python daemon under systemd.
+The bot runs as one Python daemon.
 
 It does not need Docker, a database server, FastAPI, Redis, or a web server.
 

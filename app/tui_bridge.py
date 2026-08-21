@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.control import enqueue
+from app.local_config import configured, save_value
 from app.storage import JsonStateStore
 from app.updates import install_update, update_status
 
@@ -360,6 +361,16 @@ def main() -> None:
             output(
                 daemon_status()
             )
+            return
+
+        if command == "config-status":
+            output(configured())
+            return
+
+        if command == "config-set":
+            name = str(data.get("name", ""))
+            save_value(name, str(data.get("value", "")))
+            output({"saved": name})
             return
 
         if command == "daemon-start":

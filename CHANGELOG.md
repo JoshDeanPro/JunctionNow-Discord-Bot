@@ -4,6 +4,8 @@
 
 ### Reliability
 
+- Moved private Discord setup into `jnbot` and removed separate token scripts.
+- Updated rendered posts when article-page metadata changes.
 - Kept photo requests and withdrawals intact when feed content changes.
 - Stopped banned servers from receiving deliveries after reconnects.
 - Saved the required article and Discord context for photo submissions.

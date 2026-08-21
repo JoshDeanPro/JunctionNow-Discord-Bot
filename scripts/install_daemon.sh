@@ -42,7 +42,7 @@ User=$RUN_USER
 WorkingDirectory=$ROOT
 EnvironmentFile=$ROOT/.env
 ExecStart=$ROOT/.venv/bin/python -m app.main
-Restart=always
+Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
@@ -52,6 +52,6 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now junctionnow-discord.service
+systemctl enable junctionnow-discord.service
 
-systemctl --no-pager --full status junctionnow-discord.service || true
+echo "Service installed. Use jnbot to start the bot."

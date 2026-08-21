@@ -1,9 +1,12 @@
 # Configuration
 
-Required:
+Open **Setup** in `jnbot` to save the required private settings:
 
     DISCORD_TOKEN
     DISCORD_APPLICATION_ID
+
+The token is hidden while it is entered and is never shown again. `jnbot` is
+the only supported place to change private runtime settings.
 
 Feed:
 
@@ -12,6 +15,10 @@ Feed:
 Default poll interval:
 
     SYNC_INTERVAL_SECONDS=300
+
+The bot checks the feed on this schedule. It only creates or edits Discord
+messages when stored state shows that work is needed. discord.py handles Discord
+rate limits automatically.
 
 ## Discord
 
