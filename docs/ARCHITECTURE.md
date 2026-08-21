@@ -34,6 +34,13 @@ Discord's Gateway connection is maintained by discord.py.
 
 There is no application HTTP listener.
 
+## Local Control
+
+`jnbot` is an Ink and React terminal app. Each action starts a short Python
+command. The command reads state or adds an operator action to the JSON file.
+The daemon executes queued Discord actions. The UI does not receive the bot
+token, and no local server is required.
+
 ## Persistent Updates
 
 Every sent JunctionNow post stores its Discord message ID.

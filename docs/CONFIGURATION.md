@@ -15,7 +15,7 @@ Default poll interval:
 
 ## Discord
 
-/config allows an administrator to:
+/config allows a member with Manage Server permission to:
 
 - select an existing channel
 - create a JunctionNow channel

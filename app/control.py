@@ -216,6 +216,14 @@ class ControlWorker:
                 )[:300],
             }
 
+            guild = state.setdefault(
+                "guilds",
+                {},
+            ).get(guild_id)
+
+            if guild:
+                guild["enabled"] = False
+
         await self.bot.store.mutate(change)
 
         guild = self.bot.get_guild(

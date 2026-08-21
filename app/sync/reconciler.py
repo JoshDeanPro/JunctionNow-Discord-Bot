@@ -241,10 +241,18 @@ class SyncEngine:
                         {},
                     )
 
+                    banned_guilds = state.get(
+                        "banned_guilds",
+                        {},
+                    )
+
                     for (
                         guild_id,
                         config,
                     ) in guilds.items():
+                        if guild_id in banned_guilds:
+                            continue
+
                         if not (
                             config.get(
                                 "enabled"

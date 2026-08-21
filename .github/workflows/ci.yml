@@ -35,3 +35,15 @@ jobs:
 
       - name: Run tests
         run: pytest -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Check operator console
+        run: |
+          npm --prefix ui ci
+          npm --prefix ui run check

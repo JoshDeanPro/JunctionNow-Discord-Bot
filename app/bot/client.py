@@ -77,7 +77,14 @@ class JunctionNowBot(commands.Bot):
             len(self.guilds),
         )
 
-        for guild in self.guilds:
+        state = await self.store.snapshot()
+        banned_guilds = state.get("banned_guilds", {})
+
+        for guild in list(self.guilds):
+            if str(guild.id) in banned_guilds:
+                await guild.leave()
+                continue
+
             await self.store.track_guild(
                 guild
             )

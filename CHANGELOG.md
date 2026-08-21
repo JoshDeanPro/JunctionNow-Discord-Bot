@@ -2,15 +2,22 @@
 
 ## Unreleased
 
-### Private Management
+### Reliability
 
-- Added a private operator control panel.
+- Kept photo requests and withdrawals intact when feed content changes.
+- Stopped banned servers from receiving deliveries after reconnects.
+- Saved the required article and Discord context for photo submissions.
+- Added confirmed, fast-forward-only updates to the local console.
+- Added Node 22 console checks to CI.
+
+### Operator Console
+
+- Added the local `jnbot` operator console.
 - Added feed pause and resume controls.
 - Added manual feed sync.
 - Added server status view.
-- Added management alerts.
-- Kept management separate from user commands.
-- Kept private Discord IDs out of GitHub.
+- Kept operator controls separate from public Discord commands.
+- Kept private settings out of GitHub.
 
 ### Runtime
 

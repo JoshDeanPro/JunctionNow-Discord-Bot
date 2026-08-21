@@ -27,9 +27,8 @@ Never commit:
 - personal file paths
 - local state files
 
-Use `.env.example` for setting names.
-
-Leave secret values blank.
+Keep local settings in the gitignored `.env` file. Do not add a public
+credential example file.
 
 ## Commit Messages
 

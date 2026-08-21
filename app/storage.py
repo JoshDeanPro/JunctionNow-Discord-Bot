@@ -19,6 +19,14 @@ T = TypeVar("T")
 
 SCHEMA_VERSION = 2
 
+POST_RUNTIME_FIELDS = (
+    "photo_requested",
+    "photo_request_changed_at",
+    "withdrawn",
+    "withdrawn_at",
+    "restored_at",
+)
+
 
 def utcnow() -> str:
     return datetime.now(UTC).isoformat()
@@ -49,7 +57,10 @@ class JsonStateStore:
         self.backup_count = settings.state_backup_count
 
         self.lock = asyncio.Lock()
-        self.process_lock_path = self.path.with_suffix(
+
+    @property
+    def process_lock_path(self) -> Path:
+        return self.path.with_suffix(
             self.path.suffix + ".lock"
         )
 
@@ -76,22 +87,23 @@ class JsonStateStore:
 
     async def initialize(self) -> None:
         async with self.lock:
-            self.path.parent.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
+            with self._process_lock():
+                self.path.parent.mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
 
-            self.backup_dir.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
+                self.backup_dir.mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
 
-            if not self.path.exists():
-                self._write_sync(default_state())
-                return
+                if not self.path.exists():
+                    self._write_sync(default_state())
+                    return
 
-            state = self._read_sync()
-            self._validate(state)
+                state = self._read_sync()
+                self._validate(state)
 
     def _validate(
         self,
@@ -739,6 +751,10 @@ class JsonStateStore:
                         "source_hash"
                     )
                 )
+
+                for field in POST_RUNTIME_FIELDS:
+                    if field in previous:
+                        record[field] = previous[field]
 
             record["last_seen_at"] = now
 

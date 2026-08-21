@@ -10,7 +10,7 @@ A small Python bot that sends JunctionNow posts to Discord and keeps them up to 
 - stores state in JSON
 - lets server managers choose a channel
 - supports optional role mentions
-- has a private operator panel
+- has a local operator console named `jnbot`
 
 Feed:
 
@@ -33,18 +33,20 @@ Both require **Manage Server** permission.
 - turn mentions off
 - enable or disable posting
 
-## Private Management
+## Operator Console
 
-The private management panel is only for approved JunctionNow operators.
+`jnbot` runs locally and never needs the Discord token. It reads the shared JSON
+state through a small Python command bridge.
 
-It can:
+It can manage:
 
-- sync now
-- pause or resume the feed
-- refresh status
-- view server status
+- servers and posting channels
+- posts and photo requests
+- broadcasts
+- bot delivery state
+- safe updates from GitHub main
 
-Private Discord IDs stay in `.env` and are not stored in Git.
+Private settings stay in `.env` and are not stored in Git.
 
 ## Local Setup
 
@@ -64,6 +66,11 @@ Set the Discord Application ID:
 Run:
 
     ./run.sh
+
+Install the local console:
+
+    npm --prefix ui ci
+    ./scripts/install_cli.sh
 
 ## Production
 

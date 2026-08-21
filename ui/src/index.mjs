@@ -640,6 +640,10 @@ function Root({
           label: 'Activity'
         },
         {
+          id: 'updates',
+          label: 'Updates'
+        },
+        {
           id: 'bot',
           label: 'Bot'
         }
@@ -1153,6 +1157,97 @@ function Bot({
   );
 }
 
+function Updates({
+  go,
+  back
+}) {
+  const [data, setData] =
+    useState(null);
+
+  const [error, setError] =
+    useState(null);
+
+  useEffect(
+    () => {
+      bridge('update-status')
+        .then(setData)
+        .catch(setError);
+    },
+    []
+  );
+
+  useInput(
+    (input, key) => {
+      if (
+        key.escape
+        || key.leftArrow
+      ) {
+        back();
+      }
+
+      if (
+        key.return
+        && data?.update_available
+        && data?.fast_forward
+      ) {
+        go({
+          name: 'update-confirm',
+          update: data
+        });
+      }
+    }
+  );
+
+  if (error) {
+    return h(
+      Message,
+      {
+        title: 'Update check failed',
+        message: error.message,
+        back
+      }
+    );
+  }
+
+  if (!data) {
+    return h(Loading);
+  }
+
+  return h(
+    Box,
+    {
+      flexDirection: 'column'
+    },
+    h(Header),
+    h(Text, {bold: true}, 'Updates'),
+    h(
+      Box,
+      {
+        flexDirection: 'column',
+        marginTop: 1
+      },
+      h(Text, {}, `Version           ${data.version}`),
+      h(Text, {}, `Installed         ${data.installed_revision}`),
+      h(Text, {}, `GitHub main       ${data.available_revision}`),
+      h(
+        Text,
+        {
+          color:
+            data.update_available
+              ? BLUE
+              : 'green'
+        },
+        data.update_available
+          ? data.fast_forward
+            ? 'Update available · enter to review'
+            : 'Update cannot be fast-forwarded safely'
+          : 'Up to date'
+      )
+    ),
+    h(Footer)
+  );
+}
+
 function App() {
   const [stack, setStack] =
     useState([
@@ -1599,6 +1694,50 @@ function App() {
       {
         go,
         back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'updates'
+  ) {
+    return h(
+      Updates,
+      {
+        go,
+        back
+      }
+    );
+  }
+
+  if (
+    screen.name
+    === 'update-confirm'
+  ) {
+    return h(
+      Confirm,
+      {
+        title: 'Install update',
+        message:
+          `Fast-forward main from ${screen.update.installed_revision} `
+          + `to ${screen.update.available_revision}?`,
+        back,
+        confirm:
+          async () => {
+            try {
+              const result = await bridge(
+                'update-install'
+              );
+
+              done(
+                `Updated to ${result.installed_revision}. `
+                + 'Restart the bot to use the new code.'
+              );
+            } catch (error) {
+              done(error.message);
+            }
+          }
       }
     );
   }

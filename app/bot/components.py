@@ -334,7 +334,7 @@ class ConfigView(
         ):
             await interaction.response.send_message(
                 "This configuration panel "
-                "belongs to another administrator.",
+                "belongs to another server manager.",
                 ephemeral=True,
             )
             return False
@@ -347,10 +347,7 @@ class ConfigView(
 
         if not (
             permissions
-            and (
-                permissions.manage_guild
-                or permissions.administrator
-            )
+            and permissions.manage_guild
         ):
             await interaction.response.send_message(
                 "Manage Server permission "

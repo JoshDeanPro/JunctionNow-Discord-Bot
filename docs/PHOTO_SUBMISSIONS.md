@@ -11,9 +11,11 @@ A user can:
 3. confirm the photos are theirs to share
 4. submit them
 
-The bot sends the files to the private JunctionNow management server.
+The bot sends the files to the optional private photo destination. If no
+destination is configured, it tells the user that submissions are unavailable.
 
-The submission includes the article, user, server, and source message.
+The saved event includes the article ID, title, URL, Discord user ID and display
+name, source server, source message, submission time, and file count.
 
 Photo requests can be turned off at any time. The button is then removed from
 existing copies of that article.

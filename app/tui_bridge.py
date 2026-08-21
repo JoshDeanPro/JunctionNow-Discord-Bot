@@ -11,6 +11,7 @@ from pathlib import Path
 from app.config import get_settings
 from app.control import enqueue
 from app.storage import JsonStateStore
+from app.updates import install_update, update_status
 
 ROOT = Path(__file__).resolve().parents[1]
 PID_FILE = ROOT / "data" / "junctionnow.pid"
@@ -371,6 +372,14 @@ def main() -> None:
             output(
                 daemon_stop()
             )
+            return
+
+        if command == "update-status":
+            output(update_status(fetch=True))
+            return
+
+        if command == "update-install":
+            output(install_update())
             return
 
         result = asyncio.run(

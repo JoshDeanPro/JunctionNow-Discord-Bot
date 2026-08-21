@@ -68,3 +68,41 @@ async def test_event_is_persisted(
         ["test_event"]
         == 1
     )
+
+
+@pytest.mark.asyncio
+async def test_feed_refresh_preserves_operator_post_state(
+    tmp_path: Path,
+):
+    store = JsonStateStore()
+    store.path = tmp_path / "state.json"
+    store.backup_dir = tmp_path / "backups"
+    await store.initialize()
+
+    original = {
+        "post_id": "article-1",
+        "title": "Original",
+        "source_hash": "old",
+    }
+    await store.upsert_post(original)
+
+    def set_operator_state(state):
+        post = state["posts"]["article-1"]
+        post["withdrawn"] = True
+        post["withdrawn_at"] = "2026-01-01T00:00:00+00:00"
+        post["photo_requested"] = True
+        post["photo_request_changed_at"] = "2026-01-02T00:00:00+00:00"
+
+    await store.mutate(set_operator_state)
+    result = await store.upsert_post(
+        {
+            **original,
+            "title": "Changed",
+            "source_hash": "new",
+        }
+    )
+
+    assert result["changed"] is True
+    assert result["record"]["title"] == "Changed"
+    assert result["record"]["withdrawn"] is True
+    assert result["record"]["photo_requested"] is True

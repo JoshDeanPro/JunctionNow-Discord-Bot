@@ -44,3 +44,15 @@ Stop:
 Start:
 
     sudo systemctl start junctionnow-discord
+
+## Local Console
+
+Install Node dependencies and the `jnbot` command:
+
+    npm --prefix ui ci
+    ./scripts/install_cli.sh
+
+The Updates screen checks `origin/main`. It only installs a clean fast-forward
+after confirmation. It runs the project checks and rolls back the code if a
+check fails. Private `.env` settings and runtime data are not tracked by Git and
+remain in place.

@@ -182,9 +182,14 @@ class PhotoSubmitModal(discord.ui.Modal):
             guild_id=self.source_guild_id,
             metadata={
                 "post_id": self.post_id,
+                "article_title": post.get("title", "JunctionNow"),
+                "article_url": post.get("url", ""),
                 "user_id": str(
                     interaction.user.id
                 ),
+                "user_display_name": interaction.user.display_name,
+                "guild_name": source_guild.name if source_guild else None,
+                "source_message_id": str(self.source_message_id),
                 "file_count": len(files),
             },
         )

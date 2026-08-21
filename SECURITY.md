@@ -14,7 +14,8 @@ Do not commit:
 
 Use environment variables for secrets.
 
-Use `.env.example` only to show which settings exist.
+Keep secrets in the gitignored `.env` file. The project does not publish an
+example credential file.
 
 ## If a Secret Is Exposed
 
