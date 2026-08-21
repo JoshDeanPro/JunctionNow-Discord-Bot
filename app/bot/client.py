@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from app.bot.commands import JunctionCommands
 from app.config import get_settings
 from app.management import ManagementManager, ManagementView
+from app.photos import PhotoPostView
 from app.storage import JsonStateStore
 from app.sync.reconciler import SyncEngine
 
@@ -64,6 +65,10 @@ class JunctionNowBot(commands.Bot):
                 )
             )
 
+        self.add_view(
+            PhotoPostView(self)
+        )
+
         if not self.background_sync.is_running():
             self.background_sync.start()
 
@@ -84,13 +89,7 @@ class JunctionNowBot(commands.Bot):
             if not self._ready_notification_sent:
                 self._ready_notification_sent = True
 
-                await self.management.notify(
-                    "JunctionNow online",
-                    (
-                        "The Discord bot is online and the "
-                        "JunctionNow feed service is ready."
-                    ),
-                )
+                await self.management.ensure_private_channels()
 
     async def on_guild_join(
         self,
@@ -102,12 +101,9 @@ class JunctionNowBot(commands.Bot):
         )
 
         if guild.id != self.settings.management_guild_id:
-            await self.management.notify(
+            await self.management.log(
                 "Server added",
-                (
-                    "JunctionNow was added to "
-                    f"**{guild.name}**."
-                ),
+                f"JunctionNow was added to **{guild.name}**.",
             )
 
         await self.management.ensure_panel()
@@ -121,13 +117,10 @@ class JunctionNowBot(commands.Bot):
         )
 
         if guild.id != self.settings.management_guild_id:
-            await self.management.notify(
+            await self.management.log(
                 "Server removed",
-                (
-                    "JunctionNow was removed from "
-                    f"**{guild.name}**."
-                ),
-                level="warning",
+                f"JunctionNow was removed from **{guild.name}**.",
+                warning=True,
             )
 
         await self.management.ensure_panel()
@@ -162,13 +155,10 @@ class JunctionNowBot(commands.Bot):
                 "Scheduled JunctionNow sync failed"
             )
 
-            await self.management.notify(
+            await self.management.log(
                 "Feed sync failed",
-                (
-                    "The scheduled feed check failed with "
-                    f"{type(exc).__name__}."
-                ),
-                level="error",
+                f"Scheduled check failed with {type(exc).__name__}.",
+                warning=True,
             )
 
             await self.management.ensure_panel()
